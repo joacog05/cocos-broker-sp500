@@ -340,7 +340,27 @@ h1, h2, h3, h4 {{
 # Funciones de obtención de datos
 # ---------------------------------------------------------------------------
 
-@st.cache_data(ttl=300, show_spinner=False)
+import time as _time
+
+
+def _retry_yfinance(func, max_retries: int = 3, base_delay: float = 2.0):
+    """Ejecuta una función de yfinance con retry y backoff exponencial.
+
+    yfinance rate-limits desde IPs compartidas (nubes, VPNs).
+    Backoff: 2s → 4s → 8s antes de rendirse.
+    """
+    for attempt in range(max_retries):
+        try:
+            return func()
+        except Exception as e:
+            if attempt < max_retries - 1:
+                delay = base_delay * (2 ** attempt)
+                _time.sleep(delay)
+            else:
+                raise e
+
+
+@st.cache_data(ttl=600, show_spinner=False)
 def fetch_spy_data(period: str = "1y") -> Optional[pd.DataFrame]:
     """
     Descarga datos históricos de SPY desde yfinance.
@@ -352,18 +372,22 @@ def fetch_spy_data(period: str = "1y") -> Optional[pd.DataFrame]:
         DataFrame con OHLCV o None si falla la descarga.
     """
     try:
-        ticker = yf.Ticker(TICKER_SPY)
-        df = ticker.history(period=period, auto_adjust=True)
-        if df.empty:
-            return None
-        df.index = pd.to_datetime(df.index).tz_localize(None)
+        def _fetch():
+            ticker = yf.Ticker(TICKER_SPY)
+            df = ticker.history(period=period, auto_adjust=True)
+            if df.empty:
+                return None
+            return df
+        df = _retry_yfinance(_fetch)
+        if df is not None:
+            df.index = pd.to_datetime(df.index).tz_localize(None)
         return df
     except Exception as e:
         st.error(f"Error al obtener datos de SPY: {e}")
         return None
 
 
-@st.cache_data(ttl=300, show_spinner=False)
+@st.cache_data(ttl=600, show_spinner=False)
 def fetch_current_price() -> Optional[float]:
     """
     Obtiene el precio de cierre más reciente de SPY.BA (BYMA).
@@ -374,16 +398,25 @@ def fetch_current_price() -> Optional[float]:
         Precio actual en ARS (float) o None si falla.
     """
     try:
-        ticker = yf.Ticker(TICKER_SPY)
-        info = ticker.fast_info
-        return float(info.last_price)
+        def _fetch():
+            ticker = yf.Ticker(TICKER_SPY)
+            info = ticker.fast_info
+            return float(info.last_price)
+        return _retry_yfinance(_fetch)
     except Exception:
-        try:
+        pass
+    try:
+        def _fetch_hist():
+            ticker = yf.Ticker(TICKER_SPY)
             data = ticker.history(period="1d")
             if not data.empty:
                 return float(data["Close"].iloc[-1])
-        except Exception:
-            pass
+            return None
+        result = _retry_yfinance(_fetch_hist)
+        if result is not None:
+            return result
+    except Exception:
+        pass
     return None
 
 
@@ -396,10 +429,15 @@ def fetch_exchange_rate() -> Optional[float]:
         Tipo de cambio (float) o None si falla.
     """
     try:
-        ticker = yf.Ticker(TICKER_USD_ARS)
-        data = ticker.history(period="1d")
-        if not data.empty:
-            return float(data["Close"].iloc[-1])
+        def _fetch():
+            ticker = yf.Ticker(TICKER_USD_ARS)
+            data = ticker.history(period="1d")
+            if not data.empty:
+                return float(data["Close"].iloc[-1])
+            return None
+        result = _retry_yfinance(_fetch)
+        if result is not None:
+            return result
     except Exception:
         pass
 
@@ -423,7 +461,7 @@ def fetch_exchange_rate() -> Optional[float]:
 # Funciones de obtención de datos — SPY USD y CCL
 # ---------------------------------------------------------------------------
 
-@st.cache_data(ttl=300, show_spinner=False)
+@st.cache_data(ttl=600, show_spinner=False)
 def fetch_spy_usd_price() -> Optional[float]:
     """
     Obtiene el precio actual de SPY en USD (NYSE).
@@ -432,16 +470,25 @@ def fetch_spy_usd_price() -> Optional[float]:
         Precio en USD (float) o None si falla.
     """
     try:
-        ticker = yf.Ticker(TICKER_SPY_USD)
-        info = ticker.fast_info
-        return float(info.last_price)
+        def _fetch():
+            ticker = yf.Ticker(TICKER_SPY_USD)
+            info = ticker.fast_info
+            return float(info.last_price)
+        return _retry_yfinance(_fetch)
     except Exception:
-        try:
+        pass
+    try:
+        def _fetch_hist():
+            ticker = yf.Ticker(TICKER_SPY_USD)
             data = ticker.history(period="1d")
             if not data.empty:
                 return float(data["Close"].iloc[-1])
-        except Exception:
-            pass
+            return None
+        result = _retry_yfinance(_fetch_hist)
+        if result is not None:
+            return result
+    except Exception:
+        pass
     return None
 
 
