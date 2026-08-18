@@ -670,6 +670,8 @@ def render_dca_section(
     exchange_rate: float = 1.0,
     spy_usd_price: float = 0.0,
     qqq_usd_price: float = 0.0,
+    spy_ars_price: float = 0.0,
+    qqq_ars_price: float = 0.0,
 ) -> None:
     """Renderiza la pestaña de calculadora DCA / Proyección.
 
@@ -681,6 +683,8 @@ def render_dca_section(
         exchange_rate:    Tipo de cambio USD/ARS.
         spy_usd_price:    Precio SPY en USD.
         qqq_usd_price:    Precio QQQ en USD.
+        spy_ars_price:    Precio CEDEAR SPY en ARS (local).
+        qqq_ars_price:    Precio CEDEAR QQQ en ARS (local).
     """
     # ====================================================================
     # PARTE 1 — Calculadora DCA Estándar (sin capital previo)
@@ -1035,37 +1039,56 @@ def render_dca_section(
 
     with budget_col2:
         # -- Calcular distribución 70/30 --
-        spy_share = budget * 0.70
-        qqq_share = budget * 0.30
+        if display_currency == "USD":
+            budget_ars_for_calc = budget * exchange_rate if exchange_rate else 0
+            fmt_budget_share = fmt_usd
+        else:
+            budget_ars_for_calc = budget_ars
+            fmt_budget_share = fmt_ars
 
-        spy_price_usd = spy_usd_price if spy_usd_price else 0
-        qqq_price_usd = qqq_usd_price if qqq_usd_price else 0
+        monto_spy_ars = budget_ars_for_calc * 0.70
+        monto_qqq_ars = budget_ars_for_calc * 0.30
 
-        spy_units = int(spy_share / spy_price_usd) if spy_price_usd > 0 else 0
-        qqq_units = int(qqq_share / qqq_price_usd) if qqq_price_usd > 0 else 0
+        # CEDEARs reales usando precio local en ARS
+        cedears_spy = int(monto_spy_ars // spy_ars_price) if spy_ars_price > 0 else 0
+        cedears_qqq = int(monto_qqq_ars // qqq_ars_price) if qqq_ars_price > 0 else 0
+
+        # Costo real de los CEDEARs sugeridos
+        costo_real_spy = cedears_spy * spy_ars_price if cedears_spy > 0 else 0
+        costo_real_qqq = cedears_qqq * qqq_ars_price if cedears_qqq > 0 else 0
 
         # -- KPIs de distribución --
         dca_c1, dca_c2, dca_c3, dca_c4 = st.columns(4)
 
         with dca_c1:
+            spy_sub = (
+                f"≈ {cedears_spy} CEDEARs ({fmt_ars(costo_real_spy)})"
+                if cedears_spy > 0
+                else f"Faltan {fmt_ars(spy_ars_price - monto_spy_ars)} para 1 unidad"
+            )
             st.markdown(
                 f"""
                 <div class="kpi-card">
                     <div class="kpi-label" style="color:#3D85C6;">SPY — 70%</div>
-                    <div class="kpi-value" style="font-size:1.2rem;">{fmt_usd(spy_share)}</div>
-                    <div class="kpi-sub neutral">≈ {spy_units} CEDEARs</div>
+                    <div class="kpi-value" style="font-size:1.2rem;">{fmt_budget_share(monto_spy_ars if display_currency == 'ARS' else monto_spy_ars / exchange_rate if exchange_rate else 0)}</div>
+                    <div class="kpi-sub neutral">{spy_sub}</div>
                 </div>
                 """,
                 unsafe_allow_html=True,
             )
 
         with dca_c2:
+            qqq_sub = (
+                f"≈ {cedears_qqq} CEDEARs ({fmt_ars(costo_real_qqq)})"
+                if cedears_qqq > 0
+                else f"Faltan {fmt_ars(qqq_ars_price - monto_qqq_ars)} para 1 unidad"
+            )
             st.markdown(
                 f"""
                 <div class="kpi-card">
                     <div class="kpi-label" style="color:#9B59B6;">QQQ — 30%</div>
-                    <div class="kpi-value" style="font-size:1.2rem;">{fmt_usd(qqq_share)}</div>
-                    <div class="kpi-sub neutral">≈ {qqq_units} CEDEARs</div>
+                    <div class="kpi-value" style="font-size:1.2rem;">{fmt_budget_share(monto_qqq_ars if display_currency == 'ARS' else monto_qqq_ars / exchange_rate if exchange_rate else 0)}</div>
+                    <div class="kpi-sub neutral">{qqq_sub}</div>
                 </div>
                 """,
                 unsafe_allow_html=True,
@@ -1075,9 +1098,9 @@ def render_dca_section(
             st.markdown(
                 f"""
                 <div class="kpi-card">
-                    <div class="kpi-label">Precio SPY (USD)</div>
-                    <div class="kpi-value" style="font-size:1.2rem;">{fmt_usd(spy_price_usd)}</div>
-                    <div class="kpi-sub neutral">NYSE</div>
+                    <div class="kpi-label">Precio CEDEAR SPY (ARS)</div>
+                    <div class="kpi-value" style="font-size:1.2rem;">{fmt_ars(spy_ars_price)}</div>
+                    <div class="kpi-sub neutral">BYMA</div>
                 </div>
                 """,
                 unsafe_allow_html=True,
@@ -1087,9 +1110,9 @@ def render_dca_section(
             st.markdown(
                 f"""
                 <div class="kpi-card">
-                    <div class="kpi-label">Precio QQQ (USD)</div>
-                    <div class="kpi-value" style="font-size:1.2rem;">{fmt_usd(qqq_price_usd)}</div>
-                    <div class="kpi-sub neutral">NASDAQ</div>
+                    <div class="kpi-label">Precio CEDEAR QQQ (ARS)</div>
+                    <div class="kpi-value" style="font-size:1.2rem;">{fmt_ars(qqq_ars_price)}</div>
+                    <div class="kpi-sub neutral">BYMA</div>
                 </div>
                 """,
                 unsafe_allow_html=True,
@@ -1105,8 +1128,8 @@ def render_dca_section(
         )
 
         # Proyectar SPY y QQQ por separado y sumar
-        spy_proj = calculate_custom_projection(0, spy_share, 0.10, 10)
-        qqq_proj = calculate_custom_projection(0, qqq_share, 0.10, 10)
+        spy_proj = calculate_custom_projection(0, monto_spy_ars, 0.10, 10)
+        qqq_proj = calculate_custom_projection(0, monto_qqq_ars, 0.10, 10)
 
         if spy_proj["df"] is not None and qqq_proj["df"] is not None:
             combined_spy = spy_proj["df"]["Valor Total Proyectado"].values
@@ -1124,8 +1147,8 @@ def render_dca_section(
                     f"""
                     <div class="kpi-card">
                         <div class="kpi-label">Total Aportado (10 años)</div>
-                        <div class="kpi-value" style="font-size:1.2rem;">{fmt_usd(final_aportado)}</div>
-                        <div class="kpi-sub neutral">240 aportes mensuales</div>
+                        <div class="kpi-value" style="font-size:1.2rem;">{fmt_ars(final_aportado)}</div>
+                        <div class="kpi-sub neutral">120 cuotas en 10 años</div>
                     </div>
                     """,
                     unsafe_allow_html=True,
@@ -1135,7 +1158,7 @@ def render_dca_section(
                     f"""
                     <div class="kpi-card">
                         <div class="kpi-label">Patrimonio Final Estimado</div>
-                        <div class="kpi-value" style="font-size:1.2rem; color:{COLORS['gain']};">{fmt_usd(final_total)}</div>
+                        <div class="kpi-value" style="font-size:1.2rem; color:{COLORS['gain']};">{fmt_ars(final_total)}</div>
                         <div class="kpi-sub positive">+{fmt_pct(((final_total - final_aportado) / final_aportado * 100) if final_aportado else 0)}</div>
                     </div>
                     """,
@@ -1146,7 +1169,7 @@ def render_dca_section(
                     f"""
                     <div class="kpi-card">
                         <div class="kpi-label">Intereses Ganados</div>
-                        <div class="kpi-value" style="font-size:1.2rem; color:{COLORS['accent']};">{fmt_usd(final_intereses)}</div>
+                        <div class="kpi-value" style="font-size:1.2rem; color:{COLORS['accent']};">{fmt_ars(final_intereses)}</div>
                         <div class="kpi-sub neutral">Poder del compuesto</div>
                     </div>
                     """,
@@ -1464,7 +1487,7 @@ def main():
         render_charts_section(active_chart_data)
 
     with tab_dca:
-        render_dca_section(active_metrics, display_currency, spy_ppc, qqq_ppc, exchange_rate, spy_usd_price, qqq_usd_price)
+        render_dca_section(active_metrics, display_currency, spy_ppc, qqq_ppc, exchange_rate, spy_usd_price, qqq_usd_price, current_price, qqq_current_price or 0)
 
     with tab_purchase:
         render_purchase_form(
