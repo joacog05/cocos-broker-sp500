@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+.streamlit/secrets.toml
+.atl/
+Coco's S&P 500.bat
+_verify_*.py
+_test_*.py
