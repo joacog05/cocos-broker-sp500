@@ -205,7 +205,7 @@ def render_sidebar() -> dict:
 # Componentes de UI — KPI Cards
 # ===========================================================================
 
-def render_kpi_cards(metrics: dict, daily_change: dict, display: str, exchange_rate: float = 1.0) -> None:
+def render_kpi_cards(metrics: dict, daily_change: dict, display: str, exchange_rate: float = 1.0, asset_label: str = "SPY") -> None:
     """
     Renderiza las tarjetas de métricas clave (KPIs).
 
@@ -241,7 +241,7 @@ def render_kpi_cards(metrics: dict, daily_change: dict, display: str, exchange_r
         st.markdown(
             f"""
             <div class="kpi-card">
-                <div class="kpi-label">Precio Actual SPY</div>
+                <div class="kpi-label">Precio Actual {asset_label}</div>
                 <div class="kpi-value">{price_str}</div>
                 <div class="kpi-sub {daily_class}">
                     {daily_sign}{fmt_pct(daily_change['pct'])} · {chg_str} {display}
@@ -282,7 +282,7 @@ def render_kpi_cards(metrics: dict, daily_change: dict, display: str, exchange_r
     with cols[3]:
         # Mostrar CCL como tipo de referencia
         ccl_val = metrics.get("ccl_rate", 0)
-        rate_display = f"ARS {ccl_val:,.1f}" if ccl_val else "N/D"
+        rate_display = fmt_ars(ccl_val) if ccl_val else "N/D"
         st.markdown(
             f"""
             <div class="kpi-card">
@@ -1436,8 +1436,16 @@ def main():
         active_daily = spy_daily
         active_chart_data = spy_data
 
+    # -- Determinar label del activo para KPIs --
+    if asset_view == "QQQ (Nasdaq 100)":
+        asset_label = "QQQ"
+    elif asset_view == "SPY (S&P 500)":
+        asset_label = "SPY"
+    else:
+        asset_label = "Portafolio"
+
     # -- KPI Cards --
-    render_kpi_cards(active_metrics, active_daily, display_currency, exchange_rate)
+    render_kpi_cards(active_metrics, active_daily, display_currency, exchange_rate, asset_label)
 
     st.markdown("")
 
