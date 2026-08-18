@@ -7,6 +7,7 @@ Contiene:
     - Funciones de cálculos financieros (DCA, rendimiento, etc.)
     - Funciones de formatting para métricas y KPIs
 """
+from __future__ import annotations
 
 import streamlit as st
 import yfinance as yf

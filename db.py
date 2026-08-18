@@ -13,6 +13,7 @@ Requisitos previos en Supabase:
     2. Habilitar RLS (Row Level Security) con una política permisiva
        para el rol `anon` durante desarrollo.
 """
+from __future__ import annotations
 
 import os
 import streamlit as st
