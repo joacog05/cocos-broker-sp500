@@ -631,7 +631,7 @@ def calculate_ccl(spy_ars: float, spy_usd: float) -> Optional[float]:
     """
     if not spy_ars or not spy_usd or spy_usd <= 0:
         return None
-    return (spy_ars * CEDEAR_RATIO) / spy_usd
+    return (spy_ars * CEDEAR_RATIO_SPY) / spy_usd
 
 
 # ---------------------------------------------------------------------------
