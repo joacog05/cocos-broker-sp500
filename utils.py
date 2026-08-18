@@ -8,18 +8,37 @@ Contiene:
     - Funciones de formatting para métricas y KPIs
 """
 
-import streamlit as st
-import yfinance as yf
-import pandas as pd
-import plotly.graph_objects as go
-from plotly.subplots import make_subplots
-from datetime import datetime, timedelta, time as dtime
-from typing import Optional
-
-
 # ---------------------------------------------------------------------------
-# Constantes de diseño — Paleta Dark Mode Fintech
+# Constantes PRIMERO — disponibles aunque yfinance/plotly fallen en import
 # ---------------------------------------------------------------------------
+
+TICKER_SPY = "SPY.BA"       # BYMA — precio real en ARS
+TICKER_SPY_USD = "SPY"      # NYSE — precio en USD
+TICKER_QQQ = "QQQ.BA"       # BYMA — precio real en ARS
+TICKER_QQQ_USD = "QQQ"      # NASDAQ — precio en USD
+TICKER_USD_ARS = "USDARS=X"
+
+CEDEAR_RATIO_SPY = 20
+CEDEAR_RATIO_QQQ = 20
+
+ASSET_CONFIG = {
+    "SPY": {
+        "ticker_byma": TICKER_SPY,
+        "ticker_usd": TICKER_SPY_USD,
+        "cear_ratio": CEDEAR_RATIO_SPY,
+        "name": "S&P 500",
+        "flag": "🇺🇸",
+        "color": "#3D85C6",
+    },
+    "QQQ": {
+        "ticker_byma": TICKER_QQQ,
+        "ticker_usd": TICKER_QQQ_USD,
+        "cear_ratio": CEDEAR_RATIO_QQQ,
+        "name": "Nasdaq 100",
+        "flag": "💻",
+        "color": "#9B59B6",
+    },
+}
 
 COLORS = {
     "bg_main": "#1E1E1E",
@@ -40,35 +59,19 @@ COLORS = {
     "tv_crosshair": "#758696",
 }
 
-TICKER_SPY = "SPY.BA"       # BYMA — precio real en ARS
-TICKER_SPY_USD = "SPY"      # NYSE — precio en USD
-TICKER_QQQ = "QQQ.BA"       # BYMA — precio real en ARS
-TICKER_QQQ_USD = "QQQ"      # NASDAQ — precio en USD
-TICKER_USD_ARS = "USDARS=X"
 
-# CEDEAR ratios: 1 CEDEAR = 1/RATIO del activo subyacente
-CEDEAR_RATIO_SPY = 20
-CEDEAR_RATIO_QQQ = 20
+# ---------------------------------------------------------------------------
+# Imports de librerías
+# ---------------------------------------------------------------------------
 
-# Mapa de configuración por activo
-ASSET_CONFIG = {
-    "SPY": {
-        "ticker_byma": TICKER_SPY,
-        "ticker_usd": TICKER_SPY_USD,
-        "cear_ratio": CEDEAR_RATIO_SPY,
-        "name": "S&P 500",
-        "flag": "🇺🇸",
-        "color": "#3D85C6",
-    },
-    "QQQ": {
-        "ticker_byma": TICKER_QQQ,
-        "ticker_usd": TICKER_QQQ_USD,
-        "cear_ratio": CEDEAR_RATIO_QQQ,
-        "name": "Nasdaq 100",
-        "flag": "💻",
-        "color": "#9B59B6",
-    },
-}
+import streamlit as st
+import yfinance as yf
+import pandas as pd
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
+from datetime import datetime, timedelta, time as dtime
+from typing import Optional
+import time as _time
 
 
 # ---------------------------------------------------------------------------
@@ -388,8 +391,6 @@ h1, h2, h3, h4 {{
 # ---------------------------------------------------------------------------
 # Funciones de obtención de datos
 # ---------------------------------------------------------------------------
-
-import time as _time
 
 
 def _retry_yfinance(func, max_retries: int = 3, base_delay: float = 2.0):
