@@ -334,14 +334,22 @@ def render_purchase_form(spy_price: float = 20000.0, qqq_price: float = 20000.0)
     col1, col2 = st.columns(2)
 
     with col1:
-        ticker_option = st.selectbox(
+        activo_seleccionado = st.selectbox(
             "Activo *",
-            options=["SPY", "QQQ"],
-            format_func=lambda x: f"{'🇺🇸' if x == 'SPY' else '💻'} {x} ({'S&P 500' if x == 'SPY' else 'Nasdaq 100'})",
-            key="input_ticker_select",
+            options=["SPY (S&P 500)", "QQQ (Nasdaq 100)"],
+            key="select_activo_compra",
         )
-        ticker_byma = f"{ticker_option}.BA"
-        auto_price = spy_price if ticker_option == "SPY" else qqq_price
+
+        if "QQQ" in activo_seleccionado:
+            ticker_option = "QQQ"
+            ticker_local = "QQQ.BA"
+            precio_defecto = float(qqq_price)
+        else:
+            ticker_option = "SPY"
+            ticker_local = "SPY.BA"
+            precio_defecto = float(spy_price)
+
+        ticker_byma = ticker_local
 
         cantidad = st.number_input(
             "Cantidad de unidades *",
@@ -362,13 +370,13 @@ def render_purchase_form(spy_price: float = 20000.0, qqq_price: float = 20000.0)
 
     with col2:
         precio = st.number_input(
-            f"Precio unitario (ARS) — {ticker_byma} *",
-            value=float(auto_price),
+            f"Precio unitario (ARS) — {ticker_local} *",
+            value=precio_defecto,
             min_value=0.0,
             step=10.0,
             format="%.2f",
-            key="input_precio_unitario",
-            help=f"Precio actual de mercado: {fmt_ars(auto_price)}. Editá si compraste a otro precio.",
+            key=f"input_precio_{ticker_option}",
+            help=f"Precio actual de mercado: {fmt_ars(precio_defecto)}. Editá si compraste a otro precio.",
         )
         notas = st.text_area(
             "Notas (opcional)",
@@ -381,7 +389,7 @@ def render_purchase_form(spy_price: float = 20000.0, qqq_price: float = 20000.0)
 
     # -- Previsualización en tiempo real --
     total_operacion = float(cantidad) * float(precio)
-    total_ars_fmt = f"{total_operacion:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+    total_ars_fmt = fmt_ars(total_operacion)
     st.markdown(
         f"""
         <div style="background-color:{COLORS['bg_main']}; border-radius:8px;
@@ -392,7 +400,7 @@ def render_purchase_form(spy_price: float = 20000.0, qqq_price: float = 20000.0)
             </span>
             <span style="color:{COLORS['text_primary']}; font-size:1.1rem;
                         font-weight:700; margin-left:8px;">
-                ARS {total_ars_fmt}
+                {total_ars_fmt}
             </span>
         </div>
         """,
@@ -474,8 +482,8 @@ def render_transaction_history(spy_transactions: list[dict], qqq_transactions: l
 
     # -- Resumen rapido por activo --
     for label, txs, color in [
-        ("🇺🇸 SPY", spy_transactions or [], "#3D85C6"),
-        ("💻 QQQ", qqq_transactions or [], "#9B59B6"),
+        ("SPY", spy_transactions or [], "#3D85C6"),
+        ("QQQ", qqq_transactions or [], "#9B59B6"),
     ]:
         if not txs:
             continue
@@ -1043,7 +1051,7 @@ def render_dca_section(
             st.markdown(
                 f"""
                 <div class="kpi-card">
-                    <div class="kpi-label" style="color:#3D85C6;">🇺🇸 SPY — 70%</div>
+                    <div class="kpi-label" style="color:#3D85C6;">SPY — 70%</div>
                     <div class="kpi-value" style="font-size:1.2rem;">{fmt_usd(spy_share)}</div>
                     <div class="kpi-sub neutral">≈ {spy_units} CEDEARs</div>
                 </div>
@@ -1055,7 +1063,7 @@ def render_dca_section(
             st.markdown(
                 f"""
                 <div class="kpi-card">
-                    <div class="kpi-label" style="color:#9B59B6;">💻 QQQ — 30%</div>
+                    <div class="kpi-label" style="color:#9B59B6;">QQQ — 30%</div>
                     <div class="kpi-value" style="font-size:1.2rem;">{fmt_usd(qqq_share)}</div>
                     <div class="kpi-sub neutral">≈ {qqq_units} CEDEARs</div>
                 </div>

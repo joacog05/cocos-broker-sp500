@@ -1189,11 +1189,11 @@ def fmt_usd(value: float) -> str:
 
 
 def fmt_ars(value: float) -> str:
-    """Formatea un valor como moneda ARS (formato argentino: 40.800)."""
+    """Formatea un valor como moneda ARS (formato argentino: 56.700)."""
     if value is None:
         return "ARS —"
     abs_val = abs(value)
-    formatted = f"{abs_val:,.0f}".replace(",", "X").replace(".", ",")
+    formatted = f"{abs_val:,.0f}".replace(",", ".")
     return f"{'-' if value < 0 else ''}ARS {formatted}"
 
 
