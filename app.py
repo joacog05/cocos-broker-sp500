@@ -126,8 +126,8 @@ def render_sidebar() -> dict:
 
         # -- Mostrar posiciones por activo --
         for ticker_label, ppc_data, color in [
-            ("🇺🇸 SPY (S&P 500)", spy_ppc, "#3D85C6"),
-            ("💻 QQQ (Nasdaq 100)", qqq_ppc, "#9B59B6"),
+            ("SPY (S&P 500)", spy_ppc, "#3D85C6"),
+            ("QQQ (Nasdaq 100)", qqq_ppc, "#9B59B6"),
         ]:
             tx_count = ppc_data["transaction_count"]
             if tx_count > 0:
@@ -1408,18 +1408,18 @@ def main():
     with ctrl_col3:
         asset_view = st.selectbox(
             "Vista",
-            options=["Portafolio Consolidado", "🇺🇸 SPY (S&P 500)", "💻 QQQ (Nasdaq 100)"],
+            options=["Portafolio Consolidado", "SPY (S&P 500)", "QQQ (Nasdaq 100)"],
             key="asset_view_selector",
         )
 
     st.markdown("")
 
     # -- Seleccionar que metricas mostrar --
-    if asset_view == "🇺🇸 SPY (S&P 500)":
+    if asset_view == "SPY (S&P 500)":
         active_metrics = spy_metrics
         active_daily = spy_daily
         active_chart_data = spy_data
-    elif asset_view == "💻 QQQ (Nasdaq 100)":
+    elif asset_view == "QQQ (Nasdaq 100)":
         active_metrics = qqq_metrics
         active_daily = qqq_daily
         active_chart_data = qqq_data if qqq_data is not None else spy_data

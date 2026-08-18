@@ -643,11 +643,14 @@ def is_market_open() -> tuple[bool, str]:
     Verifica si el mercado de BYMA está abierto.
 
     Horario BYMA: 10:30 a 17:00 hs (Argentina), días hábiles (lun-vie).
+    Usa UTC-3 (Argentina) directamente para que funcione en cualquier servidor.
 
     Returns:
         Tupla (is_open, status_html) con el estado del mercado.
     """
-    now = datetime.now()
+    from datetime import timezone, timedelta
+    art = timezone(timedelta(hours=-3))
+    now = datetime.now(art)
     weekday = now.weekday()  # 0=lun, 6=dom
     current_time = now.time()
 
@@ -715,6 +718,12 @@ def calculate_portfolio_metrics(
         Diccionario con todas las métricas calculadas.
     """
     # -- Resolver precio actual en ARS --
+    price_ars = price_ars or 0
+    current_price_usd = current_price_usd or 0
+    exchange_rate = exchange_rate or 0
+    shares = shares or 0
+    avg_price_ars = avg_price_ars or 0
+
     if price_ars > 0:
         current_price_ars = price_ars
     else:
@@ -1174,24 +1183,32 @@ def build_custom_projection_chart(df: pd.DataFrame, currency: str = "USD") -> go
 
 def fmt_usd(value: float) -> str:
     """Formatea un valor como moneda USD."""
+    if value is None:
+        return "USD —"
     return f"USD {value:,.2f}"
 
 
 def fmt_ars(value: float) -> str:
     """Formatea un valor como moneda ARS (formato argentino: 40.800)."""
+    if value is None:
+        return "ARS —"
     abs_val = abs(value)
-    formatted = f"{abs_val:,.0f}".replace(",", "X").replace(".", ",").replace("X", ".")
+    formatted = f"{abs_val:,.0f}".replace(",", "X").replace(".", ",")
     return f"{'-' if value < 0 else ''}ARS {formatted}"
 
 
 def fmt_pct(value: float) -> str:
     """Formatea un valor como porcentaje con signo."""
+    if value is None:
+        return "—"
     sign = "+" if value >= 0 else ""
     return f"{sign}{value:.2f}%"
 
 
 def fmt_change(value: float) -> str:
     """Formatea variación absoluta con signo."""
+    if value is None:
+        return "—"
     sign = "+" if value >= 0 else ""
     return f"{sign}{value:,.2f}"
 
