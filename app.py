@@ -1209,7 +1209,8 @@ def main():
     with display_col1:
         display_currency = st.radio(
             "Mostrar en",
-            ["USD", "ARS"],
+            ["ARS", "USD"],
+            index=0,
             horizontal=True,
             key="display_currency",
         )
@@ -1224,8 +1225,8 @@ def main():
     # -- Tabs principales --
     tab_charts, tab_dca, tab_purchase, tab_history, tab_summary = st.tabs(
         [
-            "📈 Gráficos Interactivos",
-            "🧮 Calculadora DCA",
+            "Gráficos Interactivos",
+            "Calculadora DCA",
             "➕ Nueva Compra",
             "📜 Historial",
             "📊 Resumen",
