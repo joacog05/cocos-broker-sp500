@@ -160,31 +160,56 @@ button[kind="secondary"]:hover {{
 }}
 
 /* ============================================================
-   PESTAÑAS (TABS) — HOVER LIFT
+   PESTAÑAS (TABS) — SEGMENTED CONTROL / FLOATING PILLS
    ============================================================ */
+
+/* --- CONTENEDOR PRINCIPAL DE PESTAÑAS (PILL CONTAINER) --- */
+div[data-baseweb="tab-list"],
+div[data-testid="stTabs"] > div:first-child {{
+    background: #181a22 !important;
+    padding: 6px !important;
+    border-radius: 14px !important;
+    border: 1px solid rgba(255, 255, 255, 0.08) !important;
+    display: inline-flex !important;
+    gap: 6px !important;
+    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.4) !important;
+    margin-bottom: 1.5rem !important;
+}}
+
+/* Ocultar la línea roja/naranja inferior por defecto de Streamlit */
+div[data-baseweb="tab-highlight"],
+div[data-baseweb="tab-border"] {{
+    display: none !important;
+}}
+
+/* --- BOTONES DE PESTAÑAS INDIVIDUALES (ESTADO INACTIVO) --- */
 button[data-baseweb="tab"] {{
-    border-radius: 8px !important;
-    padding: 0.5rem 1rem !important;
-    transition: transform 0.2s ease,
-                background-color 0.2s ease,
-                color 0.2s ease !important;
+    background: transparent !important;
+    color: #9da3b4 !important;
+    font-weight: 500 !important;
+    font-size: 0.92rem !important;
+    border-radius: 10px !important;
+    padding: 8px 18px !important;
+    border: 1px solid transparent !important;
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1) !important;
 }}
+
+/* --- EFECTO HOVER EN PESTAÑAS --- */
 button[data-baseweb="tab"]:hover {{
+    background: rgba(255, 255, 255, 0.05) !important;
+    color: #ffffff !important;
     transform: translateY(-2px) !important;
-    background-color: rgba(61, 133, 198, 0.1) !important;
-    color: #3D85C6 !important;
+    border-color: rgba(255, 255, 255, 0.1) !important;
 }}
-.stTabs [data-baseweb="tab-list"] {{
-    gap: 0;
-    background-color: {COLORS['bg_card']};
-    border-radius: 10px 10px 0 0;
-    padding: 4px 4px 0 4px;
-    border: 1px solid {COLORS['border']};
-    border-bottom: none;
-}}
-.stTabs [aria-selected="true"] {{
-    background-color: {COLORS['accent']} !important;
-    color: {COLORS['text_primary']} !important;
+
+/* --- PESTAÑA ACTIVA / SELECCIONADA (ESTILO GLOW FINTECH) --- */
+button[data-baseweb="tab"][aria-selected="true"] {{
+    background: linear-gradient(135deg, #3D85C6 0%, #1f5f99 100%) !important;
+    color: #ffffff !important;
+    font-weight: 600 !important;
+    box-shadow: 0 4px 14px rgba(61, 133, 198, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.2) !important;
+    border: 1px solid rgba(255, 255, 255, 0.2) !important;
+    transform: scale(1.02) !important;
 }}
 
 /* ============================================================
