@@ -20,17 +20,25 @@ from utils import (
     COLORS,
     CUSTOM_CSS,
     TICKER_SPY,
+    TICKER_QQQ,
+    ASSET_CONFIG,
+    CEDEAR_RATIO_SPY,
     fetch_spy_data,
+    fetch_qqq_data,
     fetch_current_price,
+    fetch_qqq_current_price,
     fetch_exchange_rate,
     fetch_spy_usd_price,
+    fetch_qqq_usd_price,
     calculate_ccl,
     is_market_open,
     calculate_portfolio_metrics,
+    calculate_consolidated_metrics,
     calculate_daily_change,
     calculate_dca_projection,
     calculate_custom_projection,
     build_custom_projection_chart,
+    build_allocation_chart,
     fmt_usd,
     fmt_ars,
     fmt_pct,
@@ -42,6 +50,7 @@ from utils import (
 from db import (
     get_supabase_client,
     fetch_transactions,
+    fetch_all_transactions,
     insert_transaction,
     delete_transaction,
     calculate_ppc,
@@ -72,7 +81,7 @@ def render_sidebar() -> dict:
     """
     Renderiza la barra lateral:
         - Estado de conexión a Supabase
-        - Métricas calculadas automáticamente desde la DB
+        - Métricas de SPY y QQQ por separado
         - Override manual del tipo de cambio
 
     Returns:
@@ -109,74 +118,53 @@ def render_sidebar() -> dict:
 
         st.markdown("---")
 
-        # -- Consultar transacciones y calcular PPC --
-        transactions = fetch_transactions(ticker=TICKER_SPY) if connected else []
-        ppc_data = calculate_ppc(transactions)
+        # -- Consultar transacciones por activo --
+        spy_transactions = fetch_transactions(ticker="SPY") if connected else []
+        qqq_transactions = fetch_transactions(ticker="QQQ") if connected else []
+        spy_ppc = calculate_ppc(spy_transactions)
+        qqq_ppc = calculate_ppc(qqq_transactions)
 
-        total_shares = ppc_data["total_shares"]
-        ppc_ars = ppc_data["ppc_ars"]
-        total_cost = ppc_data["total_cost_ars"]
-        tx_count = ppc_data["transaction_count"]
+        # -- Mostrar posiciones por activo --
+        for ticker_label, ppc_data, color in [
+            ("🇺🇸 SPY (S&P 500)", spy_ppc, "#3D85C6"),
+            ("💻 QQQ (Nasdaq 100)", qqq_ppc, "#9B59B6"),
+        ]:
+            tx_count = ppc_data["transaction_count"]
+            if tx_count > 0:
+                st.markdown(
+                    f"<span style='color:{color}; font-weight:600; font-size:0.95rem;'>"
+                    f"{ticker_label}</span>",
+                    unsafe_allow_html=True,
+                )
+                st.markdown(
+                    f"""
+                    <div style="background-color:{COLORS['bg_main']}; border-radius:10px;
+                                padding:12px; margin-bottom:8px; border:1px solid {COLORS['border']};">
+                        <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
+                            <span style="color:{COLORS['text_secondary']}; font-size:0.75rem;">Unidades</span>
+                            <span style="color:{COLORS['text_primary']}; font-weight:700;">{ppc_data['total_shares']:.2f}</span>
+                        </div>
+                        <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
+                            <span style="color:{COLORS['text_secondary']}; font-size:0.75rem;">PPC</span>
+                            <span style="color:{color}; font-weight:600; font-size:0.9rem;">{fmt_ars(ppc_data['ppc_ars'])}</span>
+                        </div>
+                        <div style="display:flex; justify-content:space-between;">
+                            <span style="color:{COLORS['text_secondary']}; font-size:0.75rem;">Costo Total</span>
+                            <span style="color:{COLORS['text_primary']}; font-weight:600;">{fmt_ars(ppc_data['total_cost_ars'])}</span>
+                        </div>
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
+                st.markdown(
+                    f"<span style='color:{COLORS['text_secondary']}; font-size:0.75rem;'>"
+                    f"📋 {tx_count} transaccion{'es' if tx_count != 1 else ''}</span>",
+                    unsafe_allow_html=True,
+                )
+                st.markdown("")
 
-        # -- Mostrar métricas calculadas --
-        if tx_count > 0:
-            st.markdown(f"### 📈 Posición Actual")
-            st.markdown(
-                f"""
-                <div style="background-color:{COLORS['bg_main']}; border-radius:10px;
-                            padding:16px; margin-bottom:12px; border:1px solid {COLORS['border']};">
-                    <div style="color:{COLORS['text_secondary']}; font-size:0.75rem;
-                                text-transform:uppercase; letter-spacing:0.05em; margin-bottom:8px;">
-                        Unidades
-                    </div>
-                    <div style="color:{COLORS['text_primary']}; font-size:1.5rem;
-                                font-weight:700;">
-                        {total_shares:.2f}
-                    </div>
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
-            st.markdown(
-                f"""
-                <div style="background-color:{COLORS['bg_main']}; border-radius:10px;
-                            padding:16px; margin-bottom:12px; border:1px solid {COLORS['border']};">
-                    <div style="color:{COLORS['text_secondary']}; font-size:0.75rem;
-                                text-transform:uppercase; letter-spacing:0.05em; margin-bottom:8px;">
-                        PPC (Precio Prom. Ponderado)
-                    </div>
-                    <div style="color:{COLORS['accent']}; font-size:1.3rem;
-                                font-weight:700;">
-                        {fmt_ars(ppc_ars)}
-                    </div>
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
-            st.markdown(
-                f"""
-                <div style="background-color:{COLORS['bg_main']}; border-radius:10px;
-                            padding:16px; margin-bottom:12px; border:1px solid {COLORS['border']};">
-                    <div style="color:{COLORS['text_secondary']}; font-size:0.75rem;
-                                text-transform:uppercase; letter-spacing:0.05em; margin-bottom:8px;">
-                        Costo Total Invertido
-                    </div>
-                    <div style="color:{COLORS['text_primary']}; font-size:1.1rem;
-                                font-weight:600;">
-                        {fmt_ars(total_cost)}
-                    </div>
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
-            st.markdown(
-                f"<span style='color:{COLORS['text_secondary']}; font-size:0.8rem;'>"
-                f"📋 {tx_count} transaccion{'es' if tx_count != 1 else ''} "
-                f"registrada{'s' if tx_count != 1 else ''}"
-                f"</span>",
-                unsafe_allow_html=True,
-            )
-        else:
+        # Si no hay transacciones de ningún activo
+        if spy_ppc["transaction_count"] == 0 and qqq_ppc["transaction_count"] == 0:
             st.warning(
                 "Sin transacciones registradas. "
                 "Usá la pestaña **➕ Nueva Compra** para agregar la primera."
@@ -205,11 +193,10 @@ def render_sidebar() -> dict:
 
     return {
         "connected": connected,
-        "transactions": transactions,
-        "total_shares": total_shares,
-        "ppc_ars": ppc_ars,
-        "total_cost_ars": total_cost,
-        "transaction_count": tx_count,
+        "spy_transactions": spy_transactions,
+        "qqq_transactions": qqq_transactions,
+        "spy_ppc": spy_ppc,
+        "qqq_ppc": qqq_ppc,
         "manual_rate": manual_rate,
     }
 
@@ -314,11 +301,12 @@ def render_kpi_cards(metrics: dict, daily_change: dict, display: str, exchange_r
 # Componentes de UI — Formulario de Nueva Compra
 # ===========================================================================
 
-def render_purchase_form(current_price: float = 20000.0) -> None:
+def render_purchase_form(spy_price: float = 20000.0, qqq_price: float = 20000.0) -> None:
     """Renderiza el formulario para registrar una nueva compra.
 
     Args:
-        current_price: Precio actual de mercado de SPY.BA en ARS.
+        spy_price: Precio actual de mercado de SPY.BA en ARS.
+        qqq_price: Precio actual de mercado de QQQ.BA en ARS.
     """
     st.markdown(
         '<div class="section-header">➕ Registrar Nueva Compra</div>',
@@ -336,8 +324,8 @@ def render_purchase_form(current_price: float = 20000.0) -> None:
     st.markdown(
         f"""
         <p style="color:{COLORS['text_secondary']}; font-size:0.9rem; margin-bottom:20px;">
-        Completá los datos de la operación. Los campos con * son obligatorios.
-        El PPC (Precio Promedio Ponderado) se recalculará automáticamente.
+        Seleccioná el activo, completá los datos y registrá la operación.
+        El precio se carga automáticamente desde el mercado.
         </p>
         """,
         unsafe_allow_html=True,
@@ -346,13 +334,15 @@ def render_purchase_form(current_price: float = 20000.0) -> None:
     col1, col2 = st.columns(2)
 
     with col1:
-        ticker = st.text_input(
-            "Ticker *",
-            value="SPY.BA",
-            max_chars=10,
-            help="Símbolo del activo (ej: SPY.BA, QQQ, AAPL)",
-            key="input_ticker",
+        ticker_option = st.selectbox(
+            "Activo *",
+            options=["SPY", "QQQ"],
+            format_func=lambda x: f"{'🇺🇸' if x == 'SPY' else '💻'} {x} ({'S&P 500' if x == 'SPY' else 'Nasdaq 100'})",
+            key="input_ticker_select",
         )
+        ticker_byma = f"{ticker_option}.BA"
+        auto_price = spy_price if ticker_option == "SPY" else qqq_price
+
         cantidad = st.number_input(
             "Cantidad de unidades *",
             min_value=1,
@@ -372,13 +362,13 @@ def render_purchase_form(current_price: float = 20000.0) -> None:
 
     with col2:
         precio = st.number_input(
-            "Precio unitario (ARS) *",
-            value=float(current_price),
+            f"Precio unitario (ARS) — {ticker_byma} *",
+            value=float(auto_price),
             min_value=0.0,
             step=10.0,
             format="%.2f",
             key="input_precio_unitario",
-            help="Precio pagado por unidad en pesos argentinos.",
+            help=f"Precio actual de mercado: {fmt_ars(auto_price)}. Editá si compraste a otro precio.",
         )
         notas = st.text_area(
             "Notas (opcional)",
@@ -419,16 +409,14 @@ def render_purchase_form(current_price: float = 20000.0) -> None:
 
     if submitted:
         # -- Validaciones --
-        if not ticker.strip():
-            st.error("El ticker no puede estar vacío.")
-        elif cantidad <= 0:
+        if cantidad <= 0:
             st.error("La cantidad debe ser mayor a 0.")
         elif precio <= 0:
             st.error("El precio debe ser mayor a 0.")
         else:
             total_operacion = float(cantidad) * float(precio)
             result = insert_transaction(
-                ticker=ticker.strip(),
+                ticker=ticker_option,
                 cantidad=int(cantidad),
                 precio_unitario_ars=float(precio),
                 fecha=fecha,
@@ -437,15 +425,16 @@ def render_purchase_form(current_price: float = 20000.0) -> None:
             )
             if result:
                 st.success(
-                    f"✅ ¡Compra de {cantidad} unidades registrada correctamente en Supabase!"
+                    f"✅ ¡Compra de {cantidad} unidades de {ticker_option} "
+                    f"registrada correctamente en Supabase!"
                 )
                 st.toast(
-                    f"🎉 Portafolio actualizado: +{cantidad} unidades de {ticker.upper().strip()}",
+                    f"🎉 Portafolio actualizado: +{cantidad} unidades de {ticker_byma}",
                     icon="🥥",
                 )
                 st.balloons()
                 # Limpiar campos del formulario
-                for key in ["input_ticker", "input_cantidad", "input_precio_unitario", "input_notas"]:
+                for key in ["input_ticker_select", "input_cantidad", "input_precio_unitario", "input_notas"]:
                     if key in st.session_state:
                         del st.session_state[key]
                 # Limpiar caché y recargar estado para actualizar métricas en toda la app
@@ -458,17 +447,23 @@ def render_purchase_form(current_price: float = 20000.0) -> None:
 # Componentes de UI — Historial de Transacciones
 # ===========================================================================
 
-def render_transaction_history(transactions: list[dict]) -> None:
+def render_transaction_history(spy_transactions: list[dict], qqq_transactions: list[dict] = None) -> None:
     """
-    Renderiza el historial completo de compras registradas.
+    Renderiza el historial completo de compras registradas (multi-asset).
 
     Args:
-        transactions: Lista de transacciones desde Supabase.
+        spy_transactions: Lista de transacciones SPY desde Supabase.
+        qqq_transactions: Lista de transacciones QQQ desde Supabase.
     """
     st.markdown(
         '<div class="section-header">📜 Historial de Compras</div>',
         unsafe_allow_html=True,
     )
+
+    # Combinar transacciones de ambos activos
+    transactions = list(spy_transactions or [])
+    if qqq_transactions:
+        transactions.extend(qqq_transactions)
 
     if not transactions:
         st.info(
@@ -477,24 +472,25 @@ def render_transaction_history(transactions: list[dict]) -> None:
         )
         return
 
-    # -- Resumen rápido --
-    ppc_data = calculate_ppc(transactions)
-    res_col1, res_col2, res_col3 = st.columns(3)
-    with res_col1:
-        st.metric(
-            "Total Unidades",
-            f"{ppc_data['total_shares']:.2f}",
+    # -- Resumen rapido por activo --
+    for label, txs, color in [
+        ("🇺🇸 SPY", spy_transactions or [], "#3D85C6"),
+        ("💻 QQQ", qqq_transactions or [], "#9B59B6"),
+    ]:
+        if not txs:
+            continue
+        ppc_data = calculate_ppc(txs)
+        st.markdown(
+            f"<span style='color:{color}; font-weight:600;'>{label}</span>",
+            unsafe_allow_html=True,
         )
-    with res_col2:
-        st.metric(
-            "PPC (ARS)",
-            fmt_ars(ppc_data["ppc_ars"]),
-        )
-    with res_col3:
-        st.metric(
-            "Costo Total (ARS)",
-            fmt_ars(ppc_data["total_cost_ars"]),
-        )
+        res_col1, res_col2, res_col3 = st.columns(3)
+        with res_col1:
+            st.metric("Unidades", f"{ppc_data['total_shares']:.2f}")
+        with res_col2:
+            st.metric("PPC (ARS)", fmt_ars(ppc_data["ppc_ars"]))
+        with res_col3:
+            st.metric("Costo Total", fmt_ars(ppc_data["total_cost_ars"]))
 
     st.markdown("")
 
@@ -658,12 +654,25 @@ def _filter_df_by_period(df: pd.DataFrame, period: str) -> pd.DataFrame:
 # Componentes de UI — Calculadora DCA
 # ===========================================================================
 
-def render_dca_section(metrics: dict, display_currency: str = "USD") -> None:
+def render_dca_section(
+    metrics: dict,
+    display_currency: str = "USD",
+    spy_ppc: dict = None,
+    qqq_ppc: dict = None,
+    exchange_rate: float = 1.0,
+    spy_usd_price: float = 0.0,
+    qqq_usd_price: float = 0.0,
+) -> None:
     """Renderiza la pestaña de calculadora DCA / Proyección.
 
     Args:
-        metrics:          Diccionario con métricas de la cartera (para capital inicial).
+        metrics:          Diccionario con métricas de la cartera.
         display_currency: Moneda de visualización ('USD' o 'ARS').
+        spy_ppc:          Datos PPC de SPY desde la DB.
+        qqq_ppc:          Datos PPC de QQQ desde la DB.
+        exchange_rate:    Tipo de cambio USD/ARS.
+        spy_usd_price:    Precio SPY en USD.
+        qqq_usd_price:    Precio QQQ en USD.
     """
     # ====================================================================
     # PARTE 1 — Calculadora DCA Estándar (sin capital previo)
@@ -972,6 +981,170 @@ def render_dca_section(metrics: dict, display_currency: str = "USD") -> None:
             hide_index=True,
         )
 
+    st.markdown("---")
+
+    # ====================================================================
+    # PARTE 3 — Asistente de Distribución 70/30
+    # ====================================================================
+    st.markdown(
+        '<div class="section-header">🎯 Asistente de Distribución 70/30</div>',
+        unsafe_allow_html=True,
+    )
+
+    st.markdown(
+        f"""
+        <p style="color:{COLORS['text_secondary']}; font-size:0.88rem; margin-bottom:16px;">
+        Ingresá tu presupuesto mensual y te sugiero cómo dividirlo entre
+        <span style="color:#3D85C6; font-weight:600;">SPY (70%)</span> y
+        <span style="color:#9B59B6; font-weight:600;">QQQ (30%)</span>.
+        </p>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    budget_col1, budget_col2 = st.columns([1, 2])
+    with budget_col1:
+        if display_currency == "USD":
+            budget = st.number_input(
+                "Presupuesto Mensual (USD)",
+                min_value=0.0,
+                value=100.0,
+                step=10.0,
+                format="%.2f",
+                key="dca_budget_usd",
+            )
+            budget_ars = budget * exchange_rate if exchange_rate else 0
+        else:
+            budget_ars = st.number_input(
+                "Presupuesto Mensual (ARS)",
+                min_value=0.0,
+                value=50000.0,
+                step=5000.0,
+                format="%.2f",
+                key="dca_budget_ars",
+            )
+            budget = budget_ars / exchange_rate if exchange_rate else 0
+
+    with budget_col2:
+        # -- Calcular distribución 70/30 --
+        spy_share = budget * 0.70
+        qqq_share = budget * 0.30
+
+        spy_price_usd = spy_usd_price if spy_usd_price else 0
+        qqq_price_usd = qqq_usd_price if qqq_usd_price else 0
+
+        spy_units = int(spy_share / spy_price_usd) if spy_price_usd > 0 else 0
+        qqq_units = int(qqq_share / qqq_price_usd) if qqq_price_usd > 0 else 0
+
+        # -- KPIs de distribución --
+        dca_c1, dca_c2, dca_c3, dca_c4 = st.columns(4)
+
+        with dca_c1:
+            st.markdown(
+                f"""
+                <div class="kpi-card">
+                    <div class="kpi-label" style="color:#3D85C6;">🇺🇸 SPY — 70%</div>
+                    <div class="kpi-value" style="font-size:1.2rem;">{fmt_usd(spy_share)}</div>
+                    <div class="kpi-sub neutral">≈ {spy_units} CEDEARs</div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+
+        with dca_c2:
+            st.markdown(
+                f"""
+                <div class="kpi-card">
+                    <div class="kpi-label" style="color:#9B59B6;">💻 QQQ — 30%</div>
+                    <div class="kpi-value" style="font-size:1.2rem;">{fmt_usd(qqq_share)}</div>
+                    <div class="kpi-sub neutral">≈ {qqq_units} CEDEARs</div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+
+        with dca_c3:
+            st.markdown(
+                f"""
+                <div class="kpi-card">
+                    <div class="kpi-label">Precio SPY (USD)</div>
+                    <div class="kpi-value" style="font-size:1.2rem;">{fmt_usd(spy_price_usd)}</div>
+                    <div class="kpi-sub neutral">NYSE</div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+
+        with dca_c4:
+            st.markdown(
+                f"""
+                <div class="kpi-card">
+                    <div class="kpi-label">Precio QQQ (USD)</div>
+                    <div class="kpi-value" style="font-size:1.2rem;">{fmt_usd(qqq_price_usd)}</div>
+                    <div class="kpi-sub neutral">NASDAQ</div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+
+    # -- Proyección combinada 70/30 --
+    if budget > 0:
+        st.markdown("")
+        st.markdown(
+            '<div style="color:{COLORS["text_secondary"]}; font-size:0.85rem; font-weight:500;">'
+            "📈 Proyección Combinada (70% SPY + 30% QQQ a 10% anual)</div>",
+            unsafe_allow_html=True,
+        )
+
+        # Proyectar SPY y QQQ por separado y sumar
+        spy_proj = calculate_custom_projection(0, spy_share, 0.10, 10)
+        qqq_proj = calculate_custom_projection(0, qqq_share, 0.10, 10)
+
+        if spy_proj["df"] is not None and qqq_proj["df"] is not None:
+            combined_spy = spy_proj["df"]["Valor Total Proyectado"].values
+            combined_qqq = qqq_proj["df"]["Valor Total Proyectado"].values
+            combined_total = combined_spy + combined_qqq
+            combined_aportado = spy_proj["df"]["Aportado (Bolsillo)"].values + qqq_proj["df"]["Aportado (Bolsillo)"].values
+
+            final_total = combined_total[-1]
+            final_aportado = combined_aportado[-1]
+            final_intereses = final_total - final_aportado
+
+            proj_c1, proj_c2, proj_c3 = st.columns(3)
+            with proj_c1:
+                st.markdown(
+                    f"""
+                    <div class="kpi-card">
+                        <div class="kpi-label">Total Aportado (10 años)</div>
+                        <div class="kpi-value" style="font-size:1.2rem;">{fmt_usd(final_aportado)}</div>
+                        <div class="kpi-sub neutral">240 aportes mensuales</div>
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
+            with proj_c2:
+                st.markdown(
+                    f"""
+                    <div class="kpi-card">
+                        <div class="kpi-label">Patrimonio Final Estimado</div>
+                        <div class="kpi-value" style="font-size:1.2rem; color:{COLORS['gain']};">{fmt_usd(final_total)}</div>
+                        <div class="kpi-sub positive">+{fmt_pct(((final_total - final_aportado) / final_aportado * 100) if final_aportado else 0)}</div>
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
+            with proj_c3:
+                st.markdown(
+                    f"""
+                    <div class="kpi-card">
+                        <div class="kpi-label">Intereses Ganados</div>
+                        <div class="kpi-value" style="font-size:1.2rem; color:{COLORS['accent']};">{fmt_usd(final_intereses)}</div>
+                        <div class="kpi-sub neutral">Poder del compuesto</div>
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
+
 
 # ===========================================================================
 # Componentes de UI — Tabla de Resumen
@@ -1118,9 +1291,9 @@ def render_summary_table(metrics: dict, daily_change: dict) -> None:
 # ===========================================================================
 
 def main():
-    """Función principal — orquesta la renderización del dashboard."""
+    """Funcion principal — orquesta la renderizacion del dashboard multi-asset."""
 
-    # -- Título + Badge de mercado --
+    # -- Titulo + Badge de mercado --
     is_open, market_html = is_market_open()
 
     st.markdown(
@@ -1129,10 +1302,10 @@ def main():
             <span style="font-size:2rem;">🥥</span>
             <div>
                 <h1 style="margin:0; font-size:1.6rem; font-weight:700;">
-                    Cocos Broker — S&P 500
+                    Cocos Broker — Multi-Asset
                 </h1>
                 <p style="color:{COLORS['text_secondary']}; margin:0; font-size:0.85rem;">
-                    Dashboard de Seguimiento de Cartera • SPY / CEDEARs • Supabase Cloud
+                    Dashboard de Cartera • SPY (S&P 500) + QQQ (Nasdaq 100) • CEDEARs • Supabase
                 </p>
             </div>
             <div style="margin-left:auto;">
@@ -1143,28 +1316,32 @@ def main():
         unsafe_allow_html=True,
     )
 
-    # -- Sidebar (calcula PPC desde la DB) --
+    # -- Sidebar (calcula PPC desde la DB para ambos activos) --
     sidebar = render_sidebar()
-    total_shares = sidebar["total_shares"]
-    ppc_ars = sidebar["ppc_ars"]
+    spy_ppc = sidebar["spy_ppc"]
+    qqq_ppc = sidebar["qqq_ppc"]
     manual_rate = sidebar["manual_rate"]
-    transactions = sidebar["transactions"]
+    spy_transactions = sidebar["spy_transactions"]
+    qqq_transactions = sidebar["qqq_transactions"]
 
-    # -- Carga de datos de mercado --
+    # -- Carga de datos de mercado para ambos activos --
     with st.spinner("Cargando datos de mercado..."):
         spy_data = fetch_spy_data(period="5y")
+        qqq_data = fetch_qqq_data(period="5y")
         current_price = fetch_current_price()
+        qqq_current_price = fetch_qqq_current_price()
         spy_usd_price = fetch_spy_usd_price()
+        qqq_usd_price = fetch_qqq_usd_price()
         market_rate = fetch_exchange_rate()
 
     if spy_data is None or current_price is None:
         st.error(
-            "⚠️ No se pudieron obtener los datos de mercado. "
+            "⚠️ No se pudieron obtener los datos de mercado de SPY. "
             "Verificá tu conexión a internet y volvé a intentar."
         )
         st.stop()
 
-    # -- Calcular CCL --
+    # -- Calcular CCL (usando SPY como referencia) --
     ccl_rate = calculate_ccl(current_price, spy_usd_price) if spy_usd_price else None
 
     # Resolver tipo de cambio: prioridad CCL > manual > mercado > fallback
@@ -1187,26 +1364,40 @@ def main():
             icon="💱",
         )
 
-    # -- CCL estimado de compra (aproximación) --
-    buy_ccl = None
-    if ppc_ars > 0 and spy_usd_price:
-        buy_ccl = (ppc_ars * 20) / spy_usd_price  # estimación usando precio USD actual
+    # -- CCL estimado de compra --
+    buy_ccl_spy = None
+    if spy_ppc["ppc_ars"] > 0 and spy_usd_price:
+        buy_ccl_spy = (spy_ppc["ppc_ars"] * CEDEAR_RATIO_SPY) / spy_usd_price
 
-    # -- Cálculos de cartera --
-    metrics = calculate_portfolio_metrics(
-        shares=total_shares,
-        avg_price_ars=ppc_ars,
+    # -- Metricas por activo --
+    spy_metrics = calculate_portfolio_metrics(
+        shares=spy_ppc["total_shares"],
+        avg_price_ars=spy_ppc["ppc_ars"],
         current_price_usd=spy_usd_price or current_price,
         exchange_rate=exchange_rate,
         price_ars=current_price,
         ccl_rate=ccl_rate or exchange_rate,
-        buy_ccl=buy_ccl or exchange_rate,
+        buy_ccl=buy_ccl_spy or exchange_rate,
     )
-    daily_change = calculate_daily_change(spy_data)
+    qqq_usd_est = qqq_usd_price
+    if not qqq_usd_est and qqq_current_price and exchange_rate:
+        qqq_usd_est = qqq_current_price / exchange_rate
+    qqq_metrics = calculate_portfolio_metrics(
+        shares=qqq_ppc["total_shares"],
+        avg_price_ars=qqq_ppc["ppc_ars"],
+        current_price_usd=qqq_usd_est or 0,
+        exchange_rate=exchange_rate,
+        price_ars=qqq_current_price or 0,
+        ccl_rate=ccl_rate or exchange_rate,
+        buy_ccl=exchange_rate,
+    )
 
-    # -- Selector de visualización --
-    display_col1, display_col2 = st.columns([1, 5])
-    with display_col1:
+    spy_daily = calculate_daily_change(spy_data)
+    qqq_daily = calculate_daily_change(qqq_data) if qqq_data is not None else {"pct": 0, "abs": 0, "prev_close": 0}
+
+    # -- Selector de moneda + vista activa --
+    ctrl_col1, ctrl_col2, ctrl_col3 = st.columns([1, 3, 1])
+    with ctrl_col1:
         display_currency = st.radio(
             "Mostrar en",
             ["ARS", "USD"],
@@ -1214,11 +1405,31 @@ def main():
             horizontal=True,
             key="display_currency",
         )
+    with ctrl_col3:
+        asset_view = st.selectbox(
+            "Vista",
+            options=["Portafolio Consolidado", "🇺🇸 SPY (S&P 500)", "💻 QQQ (Nasdaq 100)"],
+            key="asset_view_selector",
+        )
 
     st.markdown("")
 
+    # -- Seleccionar que metricas mostrar --
+    if asset_view == "🇺🇸 SPY (S&P 500)":
+        active_metrics = spy_metrics
+        active_daily = spy_daily
+        active_chart_data = spy_data
+    elif asset_view == "💻 QQQ (Nasdaq 100)":
+        active_metrics = qqq_metrics
+        active_daily = qqq_daily
+        active_chart_data = qqq_data if qqq_data is not None else spy_data
+    else:
+        active_metrics = calculate_consolidated_metrics(spy_metrics, qqq_metrics, display_currency)
+        active_daily = spy_daily
+        active_chart_data = spy_data
+
     # -- KPI Cards --
-    render_kpi_cards(metrics, daily_change, display_currency, exchange_rate)
+    render_kpi_cards(active_metrics, active_daily, display_currency, exchange_rate)
 
     st.markdown("")
 
@@ -1234,32 +1445,67 @@ def main():
     )
 
     with tab_charts:
-        render_charts_section(spy_data)
+        render_charts_section(active_chart_data)
 
     with tab_dca:
-        render_dca_section(metrics, display_currency)
+        render_dca_section(active_metrics, display_currency, spy_ppc, qqq_ppc, exchange_rate, spy_usd_price, qqq_usd_price)
 
     with tab_purchase:
-        render_purchase_form(current_price=current_price)
+        render_purchase_form(
+            spy_price=current_price,
+            qqq_price=qqq_current_price or current_price,
+        )
 
     with tab_history:
-        render_transaction_history(transactions)
+        render_transaction_history(spy_transactions, qqq_transactions)
 
     with tab_summary:
-        render_summary_table(metrics, daily_change)
+        render_summary_table(active_metrics, active_daily)
+        # -- Asset Allocation (solo en vista consolidada) --
+        total_ars = (spy_metrics.get("total_value_ars", 0) or 0) + (qqq_metrics.get("total_value_ars", 0) or 0)
+        if asset_view == "Portafolio Consolidado" and total_ars > 0:
+            st.markdown("")
+            st.markdown(
+                '<div class="section-header">🎯 Asset Allocation — Distribución del Portafolio</div>',
+                unsafe_allow_html=True,
+            )
+            fig_alloc = build_allocation_chart(active_metrics, display_currency)
+            st.plotly_chart(fig_alloc, use_container_width=True, config={"displayModeBar": False})
+            # -- Indicador de rebalanceo --
+            key_prefix = "spy_value_" + ("ars" if display_currency == "ARS" else "usd")
+            spy_val = active_metrics.get(key_prefix, 0) or 0
+            qqq_key = "qqq_value_" + ("ars" if display_currency == "ARS" else "usd")
+            qqq_val = active_metrics.get(qqq_key, 0) or 0
+            total_val = spy_val + qqq_val
+            if total_val > 0:
+                spy_pct = spy_val / total_val * 100
+                diff = spy_pct - 70
+                if abs(diff) > 5:
+                    direction = "más" if diff > 0 else "menos"
+                    st.warning(
+                        f"⚠️ Tu ponderación de SPY es {spy_pct:.1f}% (objetivo: 70%). "
+                        f"Convendría rebalancear — {abs(diff):.1f}% {direction} de lo ideal."
+                    )
+                else:
+                    st.success(
+                        f"✅ Tu distribución ({spy_pct:.1f}% SPY / {100-spy_pct:.1f}% QQQ) "
+                        f"está cerca del objetivo 70/30. No necesita rebalanceo."
+                    )
 
     # -- Footer --
     st.markdown("---")
     st.markdown(
         f"""
         <div style="text-align:center; color:{COLORS['text_secondary']}; font-size:0.75rem; padding:8px 0;">
-            Coco's Broker · Datos: yfinance · Persistencia: Supabase ·
+            Coco's Broker · Multi-Asset · SPY + QQQ · CEDEARs ·
+            Datos: yfinance · Persistencia: Supabase ·
             No constituye asesoramiento financiero ·
             Actualizado: {pd.Timestamp.now().strftime('%d/%m/%Y %H:%M')} ART
         </div>
         """,
         unsafe_allow_html=True,
     )
+
 
 
 # -- Entry point --

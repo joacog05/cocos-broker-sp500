@@ -42,10 +42,33 @@ COLORS = {
 
 TICKER_SPY = "SPY.BA"       # BYMA — precio real en ARS
 TICKER_SPY_USD = "SPY"      # NYSE — precio en USD
+TICKER_QQQ = "QQQ.BA"       # BYMA — precio real en ARS
+TICKER_QQQ_USD = "QQQ"      # NASDAQ — precio en USD
 TICKER_USD_ARS = "USDARS=X"
 
-# CEDEAR ratio: 1 CEDEAR SPY.BA = 1/CEDEAR_RATIO de1 SPY
-CEDEAR_RATIO = 20
+# CEDEAR ratios: 1 CEDEAR = 1/RATIO del activo subyacente
+CEDEAR_RATIO_SPY = 20
+CEDEAR_RATIO_QQQ = 20
+
+# Mapa de configuración por activo
+ASSET_CONFIG = {
+    "SPY": {
+        "ticker_byma": TICKER_SPY,
+        "ticker_usd": TICKER_SPY_USD,
+        "cear_ratio": CEDEAR_RATIO_SPY,
+        "name": "S&P 500",
+        "flag": "🇺🇸",
+        "color": "#3D85C6",
+    },
+    "QQQ": {
+        "ticker_byma": TICKER_QQQ,
+        "ticker_usd": TICKER_QQQ_USD,
+        "cear_ratio": CEDEAR_RATIO_QQQ,
+        "name": "Nasdaq 100",
+        "flag": "💻",
+        "color": "#9B59B6",
+    },
+}
 
 
 # ---------------------------------------------------------------------------
@@ -518,6 +541,80 @@ def fetch_spy_usd_price() -> Optional[float]:
     return None
 
 
+# ---------------------------------------------------------------------------
+# Funciones de obtención de datos — QQQ
+# ---------------------------------------------------------------------------
+
+@st.cache_data(ttl=600, show_spinner=False)
+def fetch_qqq_data(period: str = "1y") -> Optional[pd.DataFrame]:
+    """Descarga datos históricos de QQQ.BA desde yfinance."""
+    try:
+        def _fetch():
+            ticker = yf.Ticker(TICKER_QQQ)
+            df = ticker.history(period=period, auto_adjust=True)
+            if df.empty:
+                return None
+            return df
+        df = _retry_yfinance(_fetch)
+        if df is not None:
+            df.index = pd.to_datetime(df.index).tz_localize(None)
+        return df
+    except Exception:
+        return None
+
+
+@st.cache_data(ttl=600, show_spinner=False)
+def fetch_qqq_current_price() -> Optional[float]:
+    """Obtiene el precio actual de QQQ.BA en ARS."""
+    try:
+        def _fetch():
+            ticker = yf.Ticker(TICKER_QQQ)
+            info = ticker.fast_info
+            return float(info.last_price)
+        return _retry_yfinance(_fetch)
+    except Exception:
+        pass
+    try:
+        def _fetch_hist():
+            ticker = yf.Ticker(TICKER_QQQ)
+            data = ticker.history(period="1d")
+            if not data.empty:
+                return float(data["Close"].iloc[-1])
+            return None
+        result = _retry_yfinance(_fetch_hist)
+        if result is not None:
+            return result
+    except Exception:
+        pass
+    return None
+
+
+@st.cache_data(ttl=600, show_spinner=False)
+def fetch_qqq_usd_price() -> Optional[float]:
+    """Obtiene el precio actual de QQQ en USD (NASDAQ)."""
+    try:
+        def _fetch():
+            ticker = yf.Ticker(TICKER_QQQ_USD)
+            info = ticker.fast_info
+            return float(info.last_price)
+        return _retry_yfinance(_fetch)
+    except Exception:
+        pass
+    try:
+        def _fetch_hist():
+            ticker = yf.Ticker(TICKER_QQQ_USD)
+            data = ticker.history(period="1d")
+            if not data.empty:
+                return float(data["Close"].iloc[-1])
+            return None
+        result = _retry_yfinance(_fetch_hist)
+        if result is not None:
+            return result
+    except Exception:
+        pass
+    return None
+
+
 def calculate_ccl(spy_ars: float, spy_usd: float) -> Optional[float]:
     """
     Calcula el Dólar Contado con Liquidación (CCL) implícito.
@@ -725,6 +822,143 @@ def calculate_sma(series: pd.Series, window: int) -> pd.Series:
         Serie con los valores SMA (NaN donde no hay suficientes datos).
     """
     return series.rolling(window=window, min_periods=window).mean()
+
+
+# ---------------------------------------------------------------------------
+# Métricas multi-asset — Consolidado SPY + QQQ
+# ---------------------------------------------------------------------------
+
+def calculate_consolidated_metrics(
+    spy_metrics: dict,
+    qqq_metrics: dict,
+    display_currency: str = "ARS",
+) -> dict:
+    """
+    Consolida métricas de SPY y QQQ en un único diccionario.
+
+    Args:
+        spy_metrics:       Resultado de calculate_portfolio_metrics() para SPY.
+        qqq_metrics:       Resultado de calculate_portfolio_metrics() para QQQ.
+        display_currency:  'USD' o 'ARS' para elegir qué campos consolidar.
+
+    Returns:
+        Diccionario con métricas consolidadas compatibles con render_kpi_cards.
+    """
+    if display_currency == "USD":
+        total_value = (spy_metrics.get("total_value_usd", 0) or 0) + (qqq_metrics.get("total_value_usd", 0) or 0)
+        total_cost = (spy_metrics.get("total_cost_usd", 0) or 0) + (qqq_metrics.get("total_cost_usd", 0) or 0)
+        pnl = total_value - total_cost
+        pnl_pct = (pnl / total_cost * 100) if total_cost else 0
+        current_price = None  # No aplica para consolidado
+        avg_price = total_cost / (spy_metrics.get("total_value_usd", 0) / spy_metrics.get("current_price_usd", 1) if spy_metrics.get("current_price_usd") else 0) if total_cost else 0
+    else:
+        total_value = (spy_metrics.get("total_value_ars", 0) or 0) + (qqq_metrics.get("total_value_ars", 0) or 0)
+        total_cost = (spy_metrics.get("total_cost_ars", 0) or 0) + (qqq_metrics.get("total_cost_ars", 0) or 0)
+        pnl = total_value - total_cost
+        pnl_pct = (pnl / total_cost * 100) if total_cost else 0
+        current_price = None
+        avg_price = 0
+
+    return {
+        "current_price_usd": current_price,
+        "current_price_ars": None,
+        "avg_price_usd": avg_price if display_currency == "USD" else 0,
+        "avg_price_ars": avg_price if display_currency == "ARS" else 0,
+        "total_value_usd": total_value if display_currency == "USD" else 0,
+        "total_value_ars": total_value if display_currency == "ARS" else 0,
+        "total_cost_usd": total_cost if display_currency == "USD" else 0,
+        "total_cost_ars": total_cost if display_currency == "ARS" else 0,
+        "pnl_usd": pnl if display_currency == "USD" else 0,
+        "pnl_ars": pnl if display_currency == "ARS" else 0,
+        "pnl_pct": pnl_pct,
+        "ccl_rate": spy_metrics.get("ccl_rate"),
+        "buy_ccl": spy_metrics.get("buy_ccl"),
+        # Campos extra para allocation
+        "spy_value_ars": spy_metrics.get("total_value_ars", 0) or 0,
+        "qqq_value_ars": qqq_metrics.get("total_value_ars", 0) or 0,
+        "spy_value_usd": spy_metrics.get("total_value_usd", 0) or 0,
+        "qqq_value_usd": qqq_metrics.get("total_value_usd", 0) or 0,
+        "spy_cost_ars": spy_metrics.get("total_cost_ars", 0) or 0,
+        "qqq_cost_ars": qqq_metrics.get("total_cost_ars", 0) or 0,
+        "spy_pnl_pct": spy_metrics.get("pnl_pct", 0),
+        "qqq_pnl_pct": qqq_metrics.get("pnl_pct", 0),
+    }
+
+
+def build_allocation_chart(metrics: dict, display_currency: str = "ARS") -> go.Figure:
+    """
+    Construye un gráfico de dona con la distribución actual del portafolio
+    y la comparación contra la meta 70/30.
+
+    Args:
+        metrics:          Métricas consolidadas con spy_value y qqq_value.
+        display_currency: Moneda para los labels.
+
+    Returns:
+        Objeto Plotly Figure con dona dual (actual vs objetivo).
+    """
+    if display_currency == "USD":
+        spy_val = metrics.get("spy_value_usd", 0) or 0
+        qqq_val = metrics.get("qqq_value_usd", 0) or 0
+        curr_label = "USD"
+    else:
+        spy_val = metrics.get("spy_value_ars", 0) or 0
+        qqq_val = metrics.get("qqq_value_ars", 0) or 0
+        curr_label = "ARS"
+
+    total = spy_val + qqq_val
+    spy_pct = (spy_val / total * 100) if total else 0
+    qqq_pct = (qqq_val / total * 100) if total else 0
+
+    fig = make_subplots(
+        rows=1, cols=2,
+        specs=[[{"type": "pie"}, {"type": "pie"}]],
+        subplot_titles=("Distribución Actual", "Objetivo 70/30"),
+    )
+
+    # -- Dona 1: Distribución actual --
+    fig.add_trace(
+        go.Pie(
+            labels=["SPY (S&P 500)", "QQQ (Nasdaq 100)"],
+            values=[spy_val, qqq_val],
+            hole=0.55,
+            marker=dict(colors=["#3D85C6", "#9B59B6"]),
+            textinfo="label+percent",
+            textfont=dict(size=12, color="white"),
+            hovertemplate="%{label}<br>%{value:,.0f} " + curr_label + "<br>%{percent}<extra></extra>",
+        ),
+        row=1, col=1,
+    )
+
+    # -- Dona 2: Objetivo 70/30 --
+    fig.add_trace(
+        go.Pie(
+            labels=["SPY (S&P 500)", "QQQ (Nasdaq 100)"],
+            values=[70, 30],
+            hole=0.55,
+            marker=dict(colors=["#3D85C6", "#9B59B6"]),
+            textinfo="label+percent",
+            textfont=dict(size=12, color="white"),
+            hovertemplate="%{label}<br>%{percent}<extra></extra>",
+        ),
+        row=1, col=2,
+    )
+
+    fig.update_layout(
+        template="plotly_dark",
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        font=dict(family="Inter, sans-serif", color=COLORS["text_primary"]),
+        showlegend=False,
+        height=350,
+        margin=dict(l=20, r=20, t=40, b=20),
+        annotations=[
+            dict(text=f"<b>{spy_pct:.1f}%</b><br>SPY", x=0.18, y=0.5, font_size=14, showarrow=False, font_color="#3D85C6"),
+            dict(text=f"<b>{qqq_pct:.1f}%</b><br>QQQ", x=0.82, y=0.5, font_size=14, showarrow=False, font_color="#9B59B6"),
+        ],
+    )
+
+    return fig
 
 
 def calculate_dca_projection(

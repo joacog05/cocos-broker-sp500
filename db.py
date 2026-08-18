@@ -133,6 +133,35 @@ def fetch_transactions(
         return []
 
 
+def fetch_all_transactions(order_desc: bool = True) -> list[dict]:
+    """
+    Obtiene TODAS las transacciones de TODOS los tickers desde Supabase.
+
+    Args:
+        order_desc: Si True, ordena por fecha descendente.
+
+    Returns:
+        Lista de diccionarios con todas las transacciones (SPY, QQQ, etc.).
+    """
+    client = get_supabase_client()
+    if client is None:
+        return []
+
+    try:
+        query = client.table("transacciones").select("*")
+
+        if order_desc:
+            query = query.order("fecha", desc=True)
+        else:
+            query = query.order("fecha", desc=False)
+
+        result = query.execute()
+        return result.data if result.data else []
+    except Exception as e:
+        st.error(f"Error al consultar transacciones: {e}")
+        return []
+
+
 # ---------------------------------------------------------------------------
 # CRUD — Escritura
 # ---------------------------------------------------------------------------
