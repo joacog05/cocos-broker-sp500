@@ -1205,12 +1205,17 @@ def fmt_pct(value: float) -> str:
     return f"{sign}{value:.2f}%"
 
 
-def fmt_change(value: float) -> str:
+def fmt_change(value: float, currency: str = "ARS") -> str:
     """Formatea variación absoluta con signo."""
     if value is None:
         return "—"
     sign = "+" if value >= 0 else ""
-    return f"{sign}{value:,.2f}"
+    abs_val = abs(value)
+    if currency == "ARS":
+        formatted = f"{abs_val:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+    else:
+        formatted = f"{abs_val:,.2f}"
+    return f"{sign}{formatted}"
 
 
 def fmt_date(date_str: str) -> str:
