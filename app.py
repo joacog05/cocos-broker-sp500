@@ -377,7 +377,7 @@ def render_purchase_form(spy_price: float = 20000.0, qqq_price: float = 20000.0)
             value=precio_defecto,
             min_value=0.0,
             step=10.0,
-            format="%.2f",
+            format="%,.2f",
             key=f"input_precio_{ticker_option}",
             help=f"Precio actual de mercado: {fmt_ars(precio_defecto)}. Editá si compraste a otro precio.",
         )
@@ -793,6 +793,7 @@ def render_dca_section(
             min_value=0.0,
             value=monthly_default,
             step=monthly_step,
+            format="%,.2f",
             key="dca_monthly",
         )
     with col2:
@@ -972,7 +973,7 @@ def render_dca_section(
             value=capital_default,
             min_value=0.0,
             step=50.0 if currency_label == "USD" else 5000.0,
-            format="%.2f",
+            format="%,.2f",
             key="custom_pv",
             help="Precargado automáticamente con el total invertido en tu portafolio actual.",
         )
@@ -981,7 +982,7 @@ def render_dca_section(
             min_value=0.0,
             value=100.0 if currency_label == "USD" else 50000.0,
             step=10.0 if currency_label == "USD" else 10000.0,
-            format="%.2f",
+            format="%,.2f",
             key="custom_pmt",
             help="Monto que vas a aportar cada mes.",
         )
@@ -1142,7 +1143,7 @@ def render_dca_section(
                 min_value=0.0,
                 value=100.0,
                 step=10.0,
-                format="%.2f",
+                format="%,.2f",
                 key="dca_budget_usd",
             )
             budget_ars = budget * exchange_rate if exchange_rate else 0
@@ -1152,7 +1153,7 @@ def render_dca_section(
                 min_value=0.0,
                 value=50000.0,
                 step=5000.0,
-                format="%.2f",
+                format="%,.2f",
                 key="dca_budget_ars",
             )
             budget = budget_ars / exchange_rate if exchange_rate else 0
