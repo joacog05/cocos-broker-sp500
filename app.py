@@ -856,28 +856,55 @@ def render_dca_section(
             drift_qqq = abs(pct_actual_qqq - 30.0)
             max_drift = max(drift_spy, drift_qqq)
             if pct_actual_spy > 70.0 + 5.0:
-                st.info(
-                    "Distribución desbalanceada: Asignando mayor proporción a QQQ "
-                    "para converger al 30% objetivo."
+                st.markdown(
+                    f"""
+                    <div style="background:{COLORS['bg_card']}; border:1px solid rgba(255,255,255,0.06);
+                                border-radius:8px; padding:10px 16px; margin-bottom:12px;
+                                font-size:0.82rem; color:{COLORS['text_secondary']};">
+                        Distribución desbalanceada: Asignando mayor proporción a QQQ
+                        para converger al 30% objetivo.
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
                 )
             elif pct_actual_qqq > 30.0 + 5.0:
-                st.info(
-                    "Distribución desbalanceada: Asignando mayor proporción a SPY "
-                    "para converger al 70% objetivo."
+                st.markdown(
+                    f"""
+                    <div style="background:{COLORS['bg_card']}; border:1px solid rgba(255,255,255,0.06);
+                                border-radius:8px; padding:10px 16px; margin-bottom:12px;
+                                font-size:0.82rem; color:{COLORS['text_secondary']};">
+                        Distribución desbalanceada: Asignando mayor proporción a SPY
+                        para converger al 70% objetivo.
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
                 )
             else:
-                st.success("Distribución equilibrada: Manteniendo ratio regular 70/30.")
+                st.markdown(
+                    f"""
+                    <div style="background:{COLORS['bg_card']}; border:1px solid rgba(255,255,255,0.06);
+                                border-radius:8px; padding:10px 16px; margin-bottom:12px;
+                                font-size:0.82rem; color:{COLORS['text_secondary']};">
+                        Distribución equilibrada: Manteniendo ratio regular 70/30.
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
         else:
-            st.info("Primera compra registrada: Distribución base 70/30 aplicada.")
+            st.markdown(
+                f"""
+                <div style="background:{COLORS['bg_card']}; border:1px solid rgba(255,255,255,0.06);
+                            border-radius:8px; padding:10px 16px; margin-bottom:12px;
+                            font-size:0.82rem; color:{COLORS['text_secondary']};">
+                    Primera compra registrada: Distribución base 70/30 aplicada.
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
 
         st.markdown(
-            f"""
-            <div style="background:{COLORS['bg_card']}; border:1px solid rgba(255,255,255,0.06);
-                        border-radius:8px; padding:10px 16px; margin-bottom:12px;
-                        font-size:0.82rem; color:{COLORS['text_secondary']}; font-weight:500;">
-                Orden de Compra Estimada
-            </div>
-            """,
+            f'<div style="color:{COLORS["text_secondary"]}; font-size:0.85rem; font-weight:500; margin-bottom:8px;">'
+            'Orden de Compra Estimada</div>',
             unsafe_allow_html=True,
         )
 
