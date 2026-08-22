@@ -914,9 +914,9 @@ def render_dca_section(
             )
             st.dataframe(
                 df_yearly.style.format({
-                    "Aporte Acumulado": "$ {:,.0f}",
-                    "Capital Acumulado": "$ {:,.0f}",
-                    "Intereses": "$ {:,.0f}",
+                    "Aporte Acumulado": "$ {:,.2f}",
+                    "Capital Acumulado": "$ {:,.2f}",
+                    "Intereses": "$ {:,.2f}",
                 }),
                 use_container_width=True,
                 hide_index=True,

@@ -935,7 +935,7 @@ def build_allocation_chart(metrics: dict, display_currency: str = "ARS") -> go.F
             marker=dict(colors=["#3D85C6", "#9B59B6"]),
             textinfo="label+percent",
             textfont=dict(size=12, color="white"),
-            hovertemplate="%{label}<br>%{value:,.0f} " + curr_label + "<br>%{percent}<extra></extra>",
+            hovertemplate="%{label}<br>%{value:,.2f} " + curr_label + "<br>%{percent}<extra></extra>",
         ),
         row=1, col=1,
     )
@@ -1261,11 +1261,11 @@ def fmt_usd(value: float) -> str:
 
 
 def fmt_ars(value: float) -> str:
-    """Formatea un valor como moneda ARS (formato argentino: 56.700)."""
+    """Formatea un valor como moneda ARS (formato argentino: 56.700,00)."""
     if value is None:
         return "ARS —"
     abs_val = abs(value)
-    formatted = f"{abs_val:,.0f}".replace(",", ".")
+    formatted = f"{abs_val:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
     return f"{'-' if value < 0 else ''}ARS {formatted}"
 
 
@@ -1435,7 +1435,7 @@ def build_candlestick_chart(
     # Línea horizontal punteada en el precio actual + badge derecho
     # ================================================================
     badge_bg = COLORS["tv_bull"] if is_bull else COLORS["tv_bear"]
-    badge_text = f"{c_last:,.0f}"
+    badge_text = f"{c_last:,.2f}"
 
     fig.add_hline(
         y=c_last,
@@ -1457,11 +1457,11 @@ def build_candlestick_chart(
     # Cabecera OHLC — anotación fija esquina superior izquierda
     # ================================================================
     ohlc_text = (
-        f"O: {o_last:,.0f}  "
-        f"H: {h_last:,.0f}  "
-        f"L: {l_last:,.0f}  "
-        f"C: {c_last:,.0f}  "
-        f"Var: {var_abs:+,.0f} ({var_pct:+.2f}%)"
+        f"O: {o_last:,.2f}  "
+        f"H: {h_last:,.2f}  "
+        f"L: {l_last:,.2f}  "
+        f"C: {c_last:,.2f}  "
+        f"Var: {var_abs:+,.2f} ({var_pct:+.2f}%)"
     )
 
     fig.add_annotation(
