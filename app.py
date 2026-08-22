@@ -871,8 +871,13 @@ def render_dca_section(
             st.info("Primera compra registrada: Distribución base 70/30 aplicada.")
 
         st.markdown(
-            f'<div style="color:{COLORS["text_secondary"]}; font-size:0.85rem; font-weight:500; margin-bottom:8px;">'
-            'Orden de Compra Estimada</div>',
+            f"""
+            <div style="background:{COLORS['card']}; border:1px solid rgba(255,255,255,0.06);
+                        border-radius:8px; padding:10px 16px; margin-bottom:12px;
+                        font-size:0.82rem; color:{COLORS['text_secondary']}; font-weight:500;">
+                Orden de Compra Estimada
+            </div>
+            """,
             unsafe_allow_html=True,
         )
 
@@ -940,8 +945,15 @@ def render_dca_section(
         if remanente_total > 0:
             remanente_fmt = fmt_ars(remanente_total)
             st.markdown(
-                f"**Remanente líquido no asignado:** {remanente_fmt} "
-                "*(saldo disponible en cuenta para el próximo período)*"
+                f"""
+                <div style="background:{COLORS['card']}; border:1px solid rgba(255,255,255,0.06);
+                            border-radius:8px; padding:10px 16px; margin-top:8px;
+                            font-size:0.82rem; color:{COLORS['text_secondary']};">
+                    <span style="font-weight:500;">Remanente líquido no asignado:</span> {remanente_fmt}
+                    <span style="opacity:0.7;">(saldo disponible en cuenta para el próximo período)</span>
+                </div>
+                """,
+                unsafe_allow_html=True,
             )
 
         # -- Proyección combinada 70/30 --
