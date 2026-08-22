@@ -872,7 +872,7 @@ def render_dca_section(
 
         st.markdown(
             f"""
-            <div style="background:{COLORS['card']}; border:1px solid rgba(255,255,255,0.06);
+            <div style="background:{COLORS['bg_card']}; border:1px solid rgba(255,255,255,0.06);
                         border-radius:8px; padding:10px 16px; margin-bottom:12px;
                         font-size:0.82rem; color:{COLORS['text_secondary']}; font-weight:500;">
                 Orden de Compra Estimada
@@ -946,7 +946,7 @@ def render_dca_section(
             remanente_fmt = fmt_ars(remanente_total)
             st.markdown(
                 f"""
-                <div style="background:{COLORS['card']}; border:1px solid rgba(255,255,255,0.06);
+                <div style="background:{COLORS['bg_card']}; border:1px solid rgba(255,255,255,0.06);
                             border-radius:8px; padding:10px 16px; margin-top:8px;
                             font-size:0.82rem; color:{COLORS['text_secondary']};">
                     <span style="font-weight:500;">Remanente líquido no asignado:</span> {remanente_fmt}
