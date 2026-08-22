@@ -976,7 +976,7 @@ def build_allocation_chart(metrics: dict, display_currency: str = "ARS") -> go.F
 # ---------------------------------------------------------------------------
 
 @st.cache_data(ttl=3600, show_spinner=False)
-def calculate_cagr(ticker: str, years: int) -> float | None:
+def calculate_cagr(ticker, years):
     """
     Calcula el CAGR real de un ticker usando yfinance.
 
@@ -990,14 +990,12 @@ def calculate_cagr(ticker: str, years: int) -> float | None:
         CAGR como decimal (ej: 0.125 = 12.5%) o None si falla.
     """
     try:
-        import yfinance as yf
         end_date = datetime.now()
         start_date = end_date - timedelta(days=years * 365)
         hist = yf.download(ticker, start=start_date.strftime("%Y-%m-%d"),
                            end=end_date.strftime("%Y-%m-%d"), progress=False)
         if hist is None or len(hist) < 2:
             return None
-        # Handle multi-level columns from yfinance
         if isinstance(hist.columns, pd.MultiIndex):
             close = hist["Close"].iloc[:, 0]
         else:
@@ -1012,7 +1010,7 @@ def calculate_cagr(ticker: str, years: int) -> float | None:
 
 
 @st.cache_data(ttl=3600, show_spinner=False)
-def get_cagr_benchmarks() -> dict:
+def get_cagr_benchmarks():
     """
     Calcula benchmarks de CAGR para SPY, QQQ y mix 70/30.
 
