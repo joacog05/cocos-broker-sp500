@@ -690,7 +690,328 @@ def render_dca_section(
         qqq_ars_price:    Precio CEDEAR QQQ en ARS (local).
     """
     # ====================================================================
-    # PARTE 1 — Calculadora DCA Estándar (sin capital previo)
+    # PARTE 1 — Rebalanceo Automático por Flujo de Caja (70/30)
+    # ====================================================================
+    # Algoritmo inteligente: lee la tenencia real actual y optimiza la
+    # distribución del presupuesto mensual para acercar la cartera al
+    # objetivo 70% SPY / 30% QQQ (rebalanceo por flujo, sin venta).
+    # ====================================================================
+    st.markdown(
+        '<div class="section-header">🎯 Compra Inteligente del Mes — Rebalanceo 70/30</div>',
+        unsafe_allow_html=True,
+    )
+
+    # -- 0. Tenencia actual desde la DB --
+    unidades_spy = float(spy_ppc.get("total_shares", 0)) if spy_ppc else 0.0
+    unidades_qqq = float(qqq_ppc.get("total_shares", 0)) if qqq_ppc else 0.0
+
+    valor_actual_spy_ars = unidades_spy * spy_ars_price
+    valor_actual_qqq_ars = unidades_qqq * qqq_ars_price
+    valor_portafolio_actual = valor_actual_spy_ars + valor_actual_qqq_ars
+
+    pct_actual_spy = (valor_actual_spy_ars / valor_portafolio_actual * 100) if valor_portafolio_actual else 0
+    pct_actual_qqq = (valor_actual_qqq_ars / valor_portafolio_actual * 100) if valor_portafolio_actual else 0
+
+    # -- 1. Input del presupuesto mensual --
+    st.markdown(
+        f"""
+        <p style="color:{COLORS['text_secondary']}; font-size:0.88rem; margin-bottom:16px;">
+        Ingresá tu presupuesto mensual y el sistema calcula la compra óptima
+        para equilibrar tu cartera hacia
+        <span style="color:#3D85C6; font-weight:600;">SPY (70%)</span> /
+        <span style="color:#9B59B6; font-weight:600;">QQQ (30%)</span>
+        leyendo tu tenencia real.
+        </p>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    budget_col1, budget_col2 = st.columns([1, 2])
+    with budget_col1:
+        if display_currency == "USD":
+            budget = st.number_input(
+                "Presupuesto Mensual (USD)",
+                min_value=0.0,
+                value=100.0,
+                step=10.0,
+                format="%.2f",
+                key="dca_budget_usd",
+            )
+            budget_ars = budget * exchange_rate if exchange_rate else 0
+        else:
+            budget_ars = st.number_input(
+                "Presupuesto Mensual (ARS)",
+                min_value=0.0,
+                value=50000.0,
+                step=5000.0,
+                format="%.2f",
+                key="dca_budget_ars",
+            )
+            budget = budget_ars / exchange_rate if exchange_rate else 0
+
+    # -- 2. Algoritmo de rebalanceo dinámico --
+    if display_currency == "USD":
+        fmt_budget_share = fmt_usd
+    else:
+        fmt_budget_share = fmt_ars
+
+    monto_spy_ars = 0.0
+    monto_qqq_ars = 0.0
+    cedears_spy = 0
+    cedears_qqq = 0
+    costo_real_spy = 0.0
+    costo_real_qqq = 0.0
+    remanente_total = 0.0
+    es_rebalanceo = False
+
+    if budget_ars > 0 and spy_ars_price > 0 and qqq_ars_price > 0:
+        if valor_portafolio_actual > 0:
+            es_rebalanceo = True
+            nuevo_patrimonio_total = valor_portafolio_actual + budget_ars
+            target_spy_ars = nuevo_patrimonio_total * 0.70
+            target_qqq_ars = nuevo_patrimonio_total * 0.30
+
+            deficit_spy = max(0.0, target_spy_ars - valor_actual_spy_ars)
+            deficit_qqq = max(0.0, target_qqq_ars - valor_actual_qqq_ars)
+            suma_deficits = deficit_spy + deficit_qqq
+
+            if suma_deficits > 0:
+                asignar_spy_ars = budget_ars * (deficit_spy / suma_deficits)
+                asignar_qqq_ars = budget_ars * (deficit_qqq / suma_deficits)
+            else:
+                asignar_spy_ars = budget_ars * 0.70
+                asignar_qqq_ars = budget_ars * 0.30
+        else:
+            asignar_spy_ars = budget_ars * 0.70
+            asignar_qqq_ars = budget_ars * 0.30
+
+        cedears_spy = int(asignar_spy_ars // spy_ars_price)
+        costo_real_spy = cedears_spy * spy_ars_price
+
+        cedears_qqq = int(asignar_qqq_ars // qqq_ars_price)
+        costo_real_qqq = cedears_qqq * qqq_ars_price
+
+        monto_spy_ars = asignar_spy_ars
+        monto_qqq_ars = asignar_qqq_ars
+        remanente_total = budget_ars - (costo_real_spy + costo_real_qqq)
+
+    # -- 3. Tarjetas de Tenencia Actual vs. Objetivo --
+    if valor_portafolio_actual > 0:
+        st.markdown(
+            f'<div style="color:{COLORS["text_secondary"]}; font-size:0.85rem; font-weight:500; margin-bottom:8px;">'
+            '📊 Tu Tenencia Actual vs. Objetivo 70/30</div>',
+            unsafe_allow_html=True,
+        )
+        tc1, tc2, tc3 = st.columns(3)
+        with tc1:
+            st.markdown(
+                f"""
+                <div class="kpi-card" style="border-left:3px solid #3D85C6;">
+                    <div class="kpi-label" style="color:#3D85C6;">SPY Actual</div>
+                    <div class="kpi-value" style="font-size:1.1rem;">{unidades_spy:.0f} CEDEARs</div>
+                    <div class="kpi-sub neutral">{fmt_ars(valor_actual_spy_ars)} ({pct_actual_spy:.1f}%)</div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+        with tc2:
+            st.markdown(
+                f"""
+                <div class="kpi-card" style="border-left:3px solid #9B59B6;">
+                    <div class="kpi-label" style="color:#9B59B6;">QQQ Actual</div>
+                    <div class="kpi-value" style="font-size:1.1rem;">{unidades_qqq:.0f} CEDEARs</div>
+                    <div class="kpi-sub neutral">{fmt_ars(valor_actual_qqq_ars)} ({pct_actual_qqq:.1f}%)</div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+        with tc3:
+            st.markdown(
+                f"""
+                <div class="kpi-card">
+                    <div class="kpi-label">Patrimonio Total</div>
+                    <div class="kpi-value" style="font-size:1.1rem;">{fmt_ars(valor_portafolio_actual)}</div>
+                    <div class="kpi-sub neutral">SPY {pct_actual_spy:.1f}% · QQQ {pct_actual_qqq:.1f}%</div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+
+    # -- 4. Sugerencia de compra del mes --
+    if budget_ars > 0:
+        st.markdown("")
+
+        if es_rebalanceo and valor_portafolio_actual > 0:
+            drift_spy = abs(pct_actual_spy - 70.0)
+            drift_qqq = abs(pct_actual_qqq - 30.0)
+            max_drift = max(drift_spy, drift_qqq)
+            if max_drift > 5.0:
+                badge_style = "background:rgba(231,76,60,0.15); border:1px solid rgba(231,76,60,0.4);"
+                badge_icon = "⚠️"
+                badge_msg = f"Rebalanceo activo — drift de {max_drift:.1f}pp detectado"
+            elif max_drift > 1.0:
+                badge_style = "background:rgba(243,156,18,0.15); border:1px solid rgba(243,156,18,0.4);"
+                badge_icon = "🔄"
+                badge_msg = f"Rebalanceo suave — drift de {max_drift:.1f}pp"
+            else:
+                badge_style = "background:rgba(46,204,113,0.15); border:1px solid rgba(46,204,113,0.4);"
+                badge_icon = "✅"
+                badge_msg = "Cartera bien equilibrada — split 70/30"
+        else:
+            badge_style = "background:rgba(61,133,198,0.15); border:1px solid rgba(61,133,198,0.4);"
+            badge_icon = "🆕"
+            badge_msg = "Primera compra — distribución base 70/30"
+
+        st.markdown(
+            f"""
+            <div style="{badge_style} border-radius:8px; padding:8px 14px; margin-bottom:12px;
+                        font-size:0.82rem; color:{COLORS['text_secondary']};">
+                {badge_icon} <b>{badge_msg}</b>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+        st.markdown(
+            f'<div style="color:{COLORS["text_secondary"]}; font-size:0.85rem; font-weight:500; margin-bottom:8px;">'
+            '🎯 Compra sugerida este mes</div>',
+            unsafe_allow_html=True,
+        )
+
+        dca_c1, dca_c2, dca_c3, dca_c4 = st.columns(4)
+
+        with dca_c1:
+            spy_sub = (
+                f"≈ {cedears_spy} CEDEARs ({fmt_ars(costo_real_spy)})"
+                if cedears_spy > 0
+                else f"Faltan {fmt_ars(spy_ars_price - monto_spy_ars)} para 1 unidad"
+            ) if monto_spy_ars > 0 and spy_ars_price > 0 else "Sin datos de mercado"
+            st.markdown(
+                f"""
+                <div class="kpi-card">
+                    <div class="kpi-label" style="color:#3D85C6;">SPY — Compra</div>
+                    <div class="kpi-value" style="font-size:1.2rem;">{fmt_budget_share(monto_spy_ars if display_currency == 'ARS' else monto_spy_ars / exchange_rate if exchange_rate else 0)}</div>
+                    <div class="kpi-sub neutral">{spy_sub}</div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+
+        with dca_c2:
+            qqq_sub = (
+                f"≈ {cedears_qqq} CEDEARs ({fmt_ars(costo_real_qqq)})"
+                if cedears_qqq > 0
+                else f"Faltan {fmt_ars(qqq_ars_price - monto_qqq_ars)} para 1 unidad"
+            ) if monto_qqq_ars > 0 and qqq_ars_price > 0 else "Sin datos de mercado"
+            st.markdown(
+                f"""
+                <div class="kpi-card">
+                    <div class="kpi-label" style="color:#9B59B6;">QQQ — Compra</div>
+                    <div class="kpi-value" style="font-size:1.2rem;">{fmt_budget_share(monto_qqq_ars if display_currency == 'ARS' else monto_qqq_ars / exchange_rate if exchange_rate else 0)}</div>
+                    <div class="kpi-sub neutral">{qqq_sub}</div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+
+        with dca_c3:
+            st.markdown(
+                f"""
+                <div class="kpi-card">
+                    <div class="kpi-label">Precio CEDEAR SPY</div>
+                    <div class="kpi-value" style="font-size:1.2rem;">{fmt_ars(spy_ars_price)}</div>
+                    <div class="kpi-sub neutral">BYMA</div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+
+        with dca_c4:
+            st.markdown(
+                f"""
+                <div class="kpi-card">
+                    <div class="kpi-label">Precio CEDEAR QQQ</div>
+                    <div class="kpi-value" style="font-size:1.2rem;">{fmt_ars(qqq_ars_price)}</div>
+                    <div class="kpi-sub neutral">BYMA</div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+
+        # -- Remanente por indivisibilidad --
+        if remanente_total > 0:
+            st.markdown(
+                f"""
+                <div style="background:rgba(243,156,18,0.1); border:1px solid rgba(243,156,18,0.3);
+                            border-radius:8px; padding:8px 14px; margin-top:8px;
+                            font-size:0.8rem; color:{COLORS['text_secondary']};">
+                    💰 Remanente no invertido: <b>{fmt_ars(remanente_total)}</b>
+                    (compra indivisible — CEDEARs enteros)
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+
+        # -- Proyección combinada 70/30 --
+        st.markdown("")
+        st.markdown(
+            f'<div style="color:{COLORS["text_secondary"]}; font-size:0.85rem; font-weight:500;">'
+            '📈 Proyección Combinada (70% SPY + 30% QQQ a 10% anual)</div>',
+            unsafe_allow_html=True,
+        )
+
+        spy_proj = calculate_custom_projection(0, monto_spy_ars, 0.10, 10)
+        qqq_proj = calculate_custom_projection(0, monto_qqq_ars, 0.10, 10)
+
+        if spy_proj["df"] is not None and qqq_proj["df"] is not None:
+            combined_spy = spy_proj["df"]["Valor Total Proyectado"].values
+            combined_qqq = qqq_proj["df"]["Valor Total Proyectado"].values
+            combined_total = combined_spy + combined_qqq
+            combined_aportado = spy_proj["df"]["Aportado (Bolsillo)"].values + qqq_proj["df"]["Aportado (Bolsillo)"].values
+
+            final_total = combined_total[-1]
+            final_aportado = combined_aportado[-1]
+            final_intereses = final_total - final_aportado
+
+            proj_c1, proj_c2, proj_c3 = st.columns(3)
+            with proj_c1:
+                st.markdown(
+                    f"""
+                    <div class="kpi-card">
+                        <div class="kpi-label">Total Aportado (10 años)</div>
+                        <div class="kpi-value" style="font-size:1.2rem;">{fmt_ars(final_aportado)}</div>
+                        <div class="kpi-sub neutral">120 cuotas</div>
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
+            with proj_c2:
+                st.markdown(
+                    f"""
+                    <div class="kpi-card">
+                        <div class="kpi-label">Patrimonio Final Estimado</div>
+                        <div class="kpi-value" style="font-size:1.2rem; color:{COLORS['gain']};">{fmt_ars(final_total)}</div>
+                        <div class="kpi-sub positive">+{fmt_pct(((final_total - final_aportado) / final_aportado * 100) if final_aportado else 0)}</div>
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
+            with proj_c3:
+                st.markdown(
+                    f"""
+                    <div class="kpi-card">
+                        <div class="kpi-label">Intereses Ganados</div>
+                        <div class="kpi-value" style="font-size:1.2rem; color:{COLORS['accent']};">{fmt_ars(final_intereses)}</div>
+                        <div class="kpi-sub neutral">Poder del compuesto</div>
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
+
+    st.markdown("---")
+
+    # ====================================================================
+    # PARTE 2 — Calculadora DCA Estándar (sin capital previo)
     # ====================================================================
     st.markdown(
         '<div class="section-header">🧮 Calculadora DCA — Interés Compuesto</div>',
@@ -926,7 +1247,7 @@ def render_dca_section(
     st.markdown("---")
 
     # ====================================================================
-    # PARTE 2 — Proyección Personalizada (Mi Capital + DCA Futuro)
+    # PARTE 3 — Proyección Personalizada (Mi Capital + DCA Futuro)
     # ====================================================================
     st.markdown(
         '<div class="section-header">🚀 Proyección Personalizada (Mi Capital + DCA Futuro)</div>',
@@ -1116,186 +1437,6 @@ def render_dca_section(
 
     st.markdown("---")
 
-    # ====================================================================
-    # PARTE 3 — Asistente de Distribución 70/30
-    # ====================================================================
-    st.markdown(
-        '<div class="section-header">🎯 Asistente de Distribución 70/30</div>',
-        unsafe_allow_html=True,
-    )
-
-    st.markdown(
-        f"""
-        <p style="color:{COLORS['text_secondary']}; font-size:0.88rem; margin-bottom:16px;">
-        Ingresá tu presupuesto mensual y te sugiero cómo dividirlo entre
-        <span style="color:#3D85C6; font-weight:600;">SPY (70%)</span> y
-        <span style="color:#9B59B6; font-weight:600;">QQQ (30%)</span>.
-        </p>
-        """,
-        unsafe_allow_html=True,
-    )
-
-    budget_col1, budget_col2 = st.columns([1, 2])
-    with budget_col1:
-        if display_currency == "USD":
-            budget = st.number_input(
-                "Presupuesto Mensual (USD)",
-                min_value=0.0,
-                value=100.0,
-                step=10.0,
-                format="%.2f",
-                key="dca_budget_usd",
-            )
-            budget_ars = budget * exchange_rate if exchange_rate else 0
-        else:
-            budget_ars = st.number_input(
-                "Presupuesto Mensual (ARS)",
-                min_value=0.0,
-                value=50000.0,
-                step=5000.0,
-                format="%.2f",
-                key="dca_budget_ars",
-            )
-            budget = budget_ars / exchange_rate if exchange_rate else 0
-
-    with budget_col2:
-        # -- Calcular distribución 70/30 --
-        if display_currency == "USD":
-            budget_ars_for_calc = budget * exchange_rate if exchange_rate else 0
-            fmt_budget_share = fmt_usd
-        else:
-            budget_ars_for_calc = budget_ars
-            fmt_budget_share = fmt_ars
-
-        monto_spy_ars = budget_ars_for_calc * 0.70
-        monto_qqq_ars = budget_ars_for_calc * 0.30
-
-        # CEDEARs reales usando precio local en ARS
-        cedears_spy = int(monto_spy_ars // spy_ars_price) if spy_ars_price > 0 else 0
-        cedears_qqq = int(monto_qqq_ars // qqq_ars_price) if qqq_ars_price > 0 else 0
-
-        # Costo real de los CEDEARs sugeridos
-        costo_real_spy = cedears_spy * spy_ars_price if cedears_spy > 0 else 0
-        costo_real_qqq = cedears_qqq * qqq_ars_price if cedears_qqq > 0 else 0
-
-        # -- KPIs de distribución --
-        dca_c1, dca_c2, dca_c3, dca_c4 = st.columns(4)
-
-        with dca_c1:
-            spy_sub = (
-                f"≈ {cedears_spy} CEDEARs ({fmt_ars(costo_real_spy)})"
-                if cedears_spy > 0
-                else f"Faltan {fmt_ars(spy_ars_price - monto_spy_ars)} para 1 unidad"
-            )
-            st.markdown(
-                f"""
-                <div class="kpi-card">
-                    <div class="kpi-label" style="color:#3D85C6;">SPY — 70%</div>
-                    <div class="kpi-value" style="font-size:1.2rem;">{fmt_budget_share(monto_spy_ars if display_currency == 'ARS' else monto_spy_ars / exchange_rate if exchange_rate else 0)}</div>
-                    <div class="kpi-sub neutral">{spy_sub}</div>
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
-
-        with dca_c2:
-            qqq_sub = (
-                f"≈ {cedears_qqq} CEDEARs ({fmt_ars(costo_real_qqq)})"
-                if cedears_qqq > 0
-                else f"Faltan {fmt_ars(qqq_ars_price - monto_qqq_ars)} para 1 unidad"
-            )
-            st.markdown(
-                f"""
-                <div class="kpi-card">
-                    <div class="kpi-label" style="color:#9B59B6;">QQQ — 30%</div>
-                    <div class="kpi-value" style="font-size:1.2rem;">{fmt_budget_share(monto_qqq_ars if display_currency == 'ARS' else monto_qqq_ars / exchange_rate if exchange_rate else 0)}</div>
-                    <div class="kpi-sub neutral">{qqq_sub}</div>
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
-
-        with dca_c3:
-            st.markdown(
-                f"""
-                <div class="kpi-card">
-                    <div class="kpi-label">Precio CEDEAR SPY (ARS)</div>
-                    <div class="kpi-value" style="font-size:1.2rem;">{fmt_ars(spy_ars_price)}</div>
-                    <div class="kpi-sub neutral">BYMA</div>
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
-
-        with dca_c4:
-            st.markdown(
-                f"""
-                <div class="kpi-card">
-                    <div class="kpi-label">Precio CEDEAR QQQ (ARS)</div>
-                    <div class="kpi-value" style="font-size:1.2rem;">{fmt_ars(qqq_ars_price)}</div>
-                    <div class="kpi-sub neutral">BYMA</div>
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
-
-    # -- Proyección combinada 70/30 --
-    if budget > 0:
-        st.markdown("")
-        st.markdown(
-            '<div style="color:{COLORS["text_secondary"]}; font-size:0.85rem; font-weight:500;">'
-            "📈 Proyección Combinada (70% SPY + 30% QQQ a 10% anual)</div>",
-            unsafe_allow_html=True,
-        )
-
-        # Proyectar SPY y QQQ por separado y sumar
-        spy_proj = calculate_custom_projection(0, monto_spy_ars, 0.10, 10)
-        qqq_proj = calculate_custom_projection(0, monto_qqq_ars, 0.10, 10)
-
-        if spy_proj["df"] is not None and qqq_proj["df"] is not None:
-            combined_spy = spy_proj["df"]["Valor Total Proyectado"].values
-            combined_qqq = qqq_proj["df"]["Valor Total Proyectado"].values
-            combined_total = combined_spy + combined_qqq
-            combined_aportado = spy_proj["df"]["Aportado (Bolsillo)"].values + qqq_proj["df"]["Aportado (Bolsillo)"].values
-
-            final_total = combined_total[-1]
-            final_aportado = combined_aportado[-1]
-            final_intereses = final_total - final_aportado
-
-            proj_c1, proj_c2, proj_c3 = st.columns(3)
-            with proj_c1:
-                st.markdown(
-                    f"""
-                    <div class="kpi-card">
-                        <div class="kpi-label">Total Aportado (10 años)</div>
-                        <div class="kpi-value" style="font-size:1.2rem;">{fmt_ars(final_aportado)}</div>
-                        <div class="kpi-sub neutral">120 cuotas en 10 años</div>
-                    </div>
-                    """,
-                    unsafe_allow_html=True,
-                )
-            with proj_c2:
-                st.markdown(
-                    f"""
-                    <div class="kpi-card">
-                        <div class="kpi-label">Patrimonio Final Estimado</div>
-                        <div class="kpi-value" style="font-size:1.2rem; color:{COLORS['gain']};">{fmt_ars(final_total)}</div>
-                        <div class="kpi-sub positive">+{fmt_pct(((final_total - final_aportado) / final_aportado * 100) if final_aportado else 0)}</div>
-                    </div>
-                    """,
-                    unsafe_allow_html=True,
-                )
-            with proj_c3:
-                st.markdown(
-                    f"""
-                    <div class="kpi-card">
-                        <div class="kpi-label">Intereses Ganados</div>
-                        <div class="kpi-value" style="font-size:1.2rem; color:{COLORS['accent']};">{fmt_ars(final_intereses)}</div>
-                        <div class="kpi-sub neutral">Poder del compuesto</div>
-                    </div>
-                    """,
-                    unsafe_allow_html=True,
-                )
 
 
 # ===========================================================================
