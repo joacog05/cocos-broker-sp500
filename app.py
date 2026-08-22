@@ -705,7 +705,7 @@ def render_dca_section(
     # objetivo 70% SPY / 30% QQQ (rebalanceo por flujo, sin venta).
     # ====================================================================
     st.markdown(
-        '<div class="section-header">🎯 Compra Inteligente del Mes — Rebalanceo 70/30</div>',
+        '<div class="section-header">Compra Sugerida — Rebalanceo 70/30</div>',
         unsafe_allow_html=True,
     )
 
@@ -809,7 +809,7 @@ def render_dca_section(
     if valor_portafolio_actual > 0:
         st.markdown(
             f'<div style="color:{COLORS["text_secondary"]}; font-size:0.85rem; font-weight:500; margin-bottom:8px;">'
-            '📊 Tu Tenencia Actual vs. Objetivo 70/30</div>',
+            'Posición Actual vs. Objetivo (70% SPY / 30% QQQ)</div>',
             unsafe_allow_html=True,
         )
         tc1, tc2, tc3 = st.columns(3)
@@ -817,7 +817,7 @@ def render_dca_section(
             st.markdown(
                 f"""
                 <div class="kpi-card" style="border-left:3px solid #3D85C6;">
-                    <div class="kpi-label" style="color:#3D85C6;">SPY Actual</div>
+                    <div class="kpi-label" style="color:#3D85C6;">SPY — Tenencia Actual</div>
                     <div class="kpi-value" style="font-size:1.1rem;">{unidades_spy:.0f} CEDEARs</div>
                     <div class="kpi-sub neutral">{fmt_ars(valor_actual_spy_ars)} ({pct_actual_spy:.1f}%)</div>
                 </div>
@@ -828,7 +828,7 @@ def render_dca_section(
             st.markdown(
                 f"""
                 <div class="kpi-card" style="border-left:3px solid #9B59B6;">
-                    <div class="kpi-label" style="color:#9B59B6;">QQQ Actual</div>
+                    <div class="kpi-label" style="color:#9B59B6;">QQQ — Tenencia Actual</div>
                     <div class="kpi-value" style="font-size:1.1rem;">{unidades_qqq:.0f} CEDEARs</div>
                     <div class="kpi-sub neutral">{fmt_ars(valor_actual_qqq_ars)} ({pct_actual_qqq:.1f}%)</div>
                 </div>
@@ -839,7 +839,7 @@ def render_dca_section(
             st.markdown(
                 f"""
                 <div class="kpi-card">
-                    <div class="kpi-label">Patrimonio Total</div>
+                    <div class="kpi-label">Valor Total de Cartera</div>
                     <div class="kpi-value" style="font-size:1.1rem;">{fmt_ars(valor_portafolio_actual)}</div>
                     <div class="kpi-sub neutral">SPY {pct_actual_spy:.1f}% · QQQ {pct_actual_qqq:.1f}%</div>
                 </div>
@@ -855,36 +855,24 @@ def render_dca_section(
             drift_spy = abs(pct_actual_spy - 70.0)
             drift_qqq = abs(pct_actual_qqq - 30.0)
             max_drift = max(drift_spy, drift_qqq)
-            if max_drift > 5.0:
-                badge_style = "background:rgba(231,76,60,0.15); border:1px solid rgba(231,76,60,0.4);"
-                badge_icon = "⚠️"
-                badge_msg = f"Rebalanceo activo — drift de {max_drift:.1f}pp detectado"
-            elif max_drift > 1.0:
-                badge_style = "background:rgba(243,156,18,0.15); border:1px solid rgba(243,156,18,0.4);"
-                badge_icon = "🔄"
-                badge_msg = f"Rebalanceo suave — drift de {max_drift:.1f}pp"
+            if pct_actual_spy > 70.0 + 5.0:
+                st.info(
+                    "Distribución desbalanceada: Asignando mayor proporción a QQQ "
+                    "para converger al 30% objetivo."
+                )
+            elif pct_actual_qqq > 30.0 + 5.0:
+                st.info(
+                    "Distribución desbalanceada: Asignando mayor proporción a SPY "
+                    "para converger al 70% objetivo."
+                )
             else:
-                badge_style = "background:rgba(46,204,113,0.15); border:1px solid rgba(46,204,113,0.4);"
-                badge_icon = "✅"
-                badge_msg = "Cartera bien equilibrada — split 70/30"
+                st.success("Distribución equilibrada: Manteniendo ratio regular 70/30.")
         else:
-            badge_style = "background:rgba(61,133,198,0.15); border:1px solid rgba(61,133,198,0.4);"
-            badge_icon = "🆕"
-            badge_msg = "Primera compra — distribución base 70/30"
-
-        st.markdown(
-            f"""
-            <div style="{badge_style} border-radius:8px; padding:8px 14px; margin-bottom:12px;
-                        font-size:0.82rem; color:{COLORS['text_secondary']};">
-                {badge_icon} <b>{badge_msg}</b>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
+            st.info("Primera compra registrada: Distribución base 70/30 aplicada.")
 
         st.markdown(
             f'<div style="color:{COLORS["text_secondary"]}; font-size:0.85rem; font-weight:500; margin-bottom:8px;">'
-            '🎯 Compra sugerida este mes</div>',
+            'Orden de Compra Estimada</div>',
             unsafe_allow_html=True,
         )
 
@@ -899,7 +887,7 @@ def render_dca_section(
             st.markdown(
                 f"""
                 <div class="kpi-card">
-                    <div class="kpi-label" style="color:#3D85C6;">SPY — Compra</div>
+                    <div class="kpi-label" style="color:#3D85C6;">SPY — Asignación Sugerida</div>
                     <div class="kpi-value" style="font-size:1.2rem;">{fmt_budget_share(monto_spy_ars if display_currency == 'ARS' else monto_spy_ars / exchange_rate if exchange_rate else 0)}</div>
                     <div class="kpi-sub neutral">{spy_sub}</div>
                 </div>
@@ -916,7 +904,7 @@ def render_dca_section(
             st.markdown(
                 f"""
                 <div class="kpi-card">
-                    <div class="kpi-label" style="color:#9B59B6;">QQQ — Compra</div>
+                    <div class="kpi-label" style="color:#9B59B6;">QQQ — Asignación Sugerida</div>
                     <div class="kpi-value" style="font-size:1.2rem;">{fmt_budget_share(monto_qqq_ars if display_currency == 'ARS' else monto_qqq_ars / exchange_rate if exchange_rate else 0)}</div>
                     <div class="kpi-sub neutral">{qqq_sub}</div>
                 </div>
@@ -928,7 +916,7 @@ def render_dca_section(
             st.markdown(
                 f"""
                 <div class="kpi-card">
-                    <div class="kpi-label">Precio CEDEAR SPY</div>
+                    <div class="kpi-label">Precio de Mercado — SPY (BYMA)</div>
                     <div class="kpi-value" style="font-size:1.2rem;">{fmt_ars(spy_ars_price)}</div>
                     <div class="kpi-sub neutral">BYMA</div>
                 </div>
@@ -940,7 +928,7 @@ def render_dca_section(
             st.markdown(
                 f"""
                 <div class="kpi-card">
-                    <div class="kpi-label">Precio CEDEAR QQQ</div>
+                    <div class="kpi-label">Precio de Mercado — QQQ (BYMA)</div>
                     <div class="kpi-value" style="font-size:1.2rem;">{fmt_ars(qqq_ars_price)}</div>
                     <div class="kpi-sub neutral">BYMA</div>
                 </div>
@@ -950,23 +938,17 @@ def render_dca_section(
 
         # -- Remanente por indivisibilidad --
         if remanente_total > 0:
+            remanente_fmt = fmt_ars(remanente_total)
             st.markdown(
-                f"""
-                <div style="background:rgba(243,156,18,0.1); border:1px solid rgba(243,156,18,0.3);
-                            border-radius:8px; padding:8px 14px; margin-top:8px;
-                            font-size:0.8rem; color:{COLORS['text_secondary']};">
-                    💰 Remanente no invertido: <b>{fmt_ars(remanente_total)}</b>
-                    (compra indivisible — CEDEARs enteros)
-                </div>
-                """,
-                unsafe_allow_html=True,
+                f"**Remanente líquido no asignado:** {remanente_fmt} "
+                "*(saldo disponible en cuenta para el próximo período)*"
             )
 
         # -- Proyección combinada 70/30 --
         st.markdown("")
         st.markdown(
             f'<div style="color:{COLORS["text_secondary"]}; font-size:0.85rem; font-weight:500;">'
-            '📈 Proyección Combinada (70% SPY + 30% QQQ a 10% anual)</div>',
+            'Proyección Combinada (70% SPY + 30% QQQ a 10% anual)</div>',
             unsafe_allow_html=True,
         )
 
