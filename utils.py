@@ -1075,9 +1075,9 @@ def calculate_dca_projection(
         records.append({
             "Mes": month,
             "Año": round(month / 12, 1),
-            "Aporte Acumulado (USD)": round(total_contributed, 2),
-            "Capital Acumulado (USD)": round(capital, 2),
-            "Intereses (USD)": round(interest_earned, 2),
+            "Aporte Acumulado": round(total_contributed, 2),
+            "Capital Acumulado": round(capital, 2),
+            "Intereses": round(interest_earned, 2),
         })
 
     return pd.DataFrame(records)
@@ -1542,12 +1542,13 @@ def build_candlestick_chart(
 
 
 def build_dca_comparison_chart(
-    df_user: pd.DataFrame,
-    df_hist: pd.DataFrame,
-    rate_user: float,
-    rate_hist: float,
-    months: int,
-) -> go.Figure:
+    df_user,
+    df_hist,
+    rate_user,
+    rate_hist,
+    months,
+    currency="ARS",
+):
     """
     Construye gráfico DCA con dos curvas: manual vs histórica.
 
@@ -1566,7 +1567,7 @@ def build_dca_comparison_chart(
     # Aportes acumulados (sombreado de fondo)
     fig.add_trace(go.Scatter(
         x=df_user["Mes"],
-        y=df_user["Aporte Acumulado (USD)"],
+        y=df_user["Aporte Acumulado"],
         name="Aportes",
         fill="tozeroy",
         fillcolor="rgba(61, 133, 198, 0.12)",
@@ -1576,7 +1577,7 @@ def build_dca_comparison_chart(
     # Curva del usuario ( Verde continua)
     fig.add_trace(go.Scatter(
         x=df_user["Mes"],
-        y=df_user["Capital Acumulado (USD)"],
+        y=df_user["Capital Acumulado"],
         name=f"Tu estimación ({rate_user * 100:.1f}%)",
         line=dict(color=COLORS["gain"], width=2.5),
     ))
@@ -1584,7 +1585,7 @@ def build_dca_comparison_chart(
     # Curva histórica ( Violeta/gris punteada)
     fig.add_trace(go.Scatter(
         x=df_hist["Mes"],
-        y=df_hist["Capital Acumulado (USD)"],
+        y=df_hist["Capital Acumulado"],
         name=f"CAGR Histórico 10A ({rate_hist * 100:.1f}%)",
         line=dict(color="#9B59B6", width=2, dash="dash"),
     ))
@@ -1606,9 +1607,15 @@ def build_dca_comparison_chart(
         color = COLORS["accent"]
 
     # KPI final del usuario
-    final_user = df_user.iloc[-1]["Capital Acumulado (USD)"]
-    final_hist = df_hist.iloc[-1]["Capital Acumulado (USD)"]
+    final_user = df_user.iloc[-1]["Capital Acumulado"]
+    final_hist = df_hist.iloc[-1]["Capital Acumulado"]
     diff_abs = final_user - final_hist
+
+    # Seleccionar formatter según moneda
+    if currency == "ARS":
+        fmt_fn = fmt_ars
+    else:
+        fmt_fn = fmt_usd
 
     fig.update_layout(
         template="plotly_dark",
@@ -1626,7 +1633,7 @@ def build_dca_comparison_chart(
         ),
         margin=dict(l=0, r=0, t=30, b=0),
         xaxis_title="Mes",
-        yaxis_title="USD",
+        yaxis_title=currency,
         xaxis=dict(gridcolor="rgba(255,255,255,0.04)", showgrid=False),
         yaxis=dict(gridcolor="rgba(255,255,255,0.04)", showgrid=False),
         height=400,
@@ -1634,7 +1641,7 @@ def build_dca_comparison_chart(
             dict(
                 text=(
                     f"<b>Diferencia a {months // 12} años:</b> "
-                    f"{'+'if diff_abs >= 0 else ''}{fmt_usd(diff_abs)}"
+                    f"{'+'if diff_abs >= 0 else ''}{fmt_fn(diff_abs)}"
                 ),
                 xref="paper", yref="paper",
                 x=0.01, y=0.98,
@@ -1651,12 +1658,13 @@ def build_dca_comparison_chart(
     return fig
 
 
-def build_dca_chart(df: pd.DataFrame) -> go.Figure:
+def build_dca_chart(df, currency="ARS"):
     """
     Construye el gráfico de proyección DCA con áreas apiladas.
 
     Args:
         df: DataFrame resultante de calculate_dca_projection.
+        currency: 'ARS' o 'USD' para el label del eje Y.
 
     Returns:
         Objeto Plotly Figure.
@@ -1666,7 +1674,7 @@ def build_dca_chart(df: pd.DataFrame) -> go.Figure:
     # -- Aportes acumulados --
     fig.add_trace(go.Scatter(
         x=df["Mes"],
-        y=df["Aporte Acumulado (USD)"],
+        y=df["Aporte Acumulado"],
         name="Aportes",
         fill="tozeroy",
         fillcolor="rgba(61, 133, 198, 0.2)",
@@ -1676,7 +1684,7 @@ def build_dca_chart(df: pd.DataFrame) -> go.Figure:
     # -- Capital total --
     fig.add_trace(go.Scatter(
         x=df["Mes"],
-        y=df["Capital Acumulado (USD)"],
+        y=df["Capital Acumulado"],
         name="Capital Total",
         fill="tonexty",
         fillcolor="rgba(46, 204, 113, 0.15)",
@@ -1699,7 +1707,7 @@ def build_dca_chart(df: pd.DataFrame) -> go.Figure:
         ),
         margin=dict(l=0, r=0, t=10, b=0),
         xaxis_title="Mes",
-        yaxis_title="USD",
+        yaxis_title=currency,
         xaxis=dict(gridcolor="rgba(255,255,255,0.04)", showgrid=False),
         yaxis=dict(gridcolor="rgba(255,255,255,0.04)", showgrid=False),
         height=380,

@@ -701,11 +701,29 @@ def render_dca_section(
         f"""
         <p style="color:{COLORS['text_secondary']}; font-size:0.9rem; margin-bottom:16px;">
         Simula el crecimiento de tu inversión con aportes periódicos.
-        Seleccioná un escenario o ingresá la tasa manualmente.
+        Seleccioná moneda, un escenario o ingresá la tasa manualmente.
         </p>
         """,
         unsafe_allow_html=True,
     )
+
+    # -- Selector de moneda DCA --
+    dca_currency = st.radio(
+        "Moneda",
+        ["ARS", "USD"],
+        index=0,
+        horizontal=True,
+        key="dca_currency",
+    )
+
+    if dca_currency == "USD":
+        fmt_dca = fmt_usd
+        monthly_default = 100.0
+        monthly_step = 10.0
+    else:
+        fmt_dca = fmt_ars
+        monthly_default = 100000.0
+        monthly_step = 10000.0
 
     # -- Descargar benchmarks CAGR --
     benchmarks = get_cagr_benchmarks()
@@ -771,10 +789,10 @@ def render_dca_section(
     col1, col2, col3 = st.columns(3)
     with col1:
         monthly = st.number_input(
-            "Aporte mensual (USD)",
+            f"Aporte mensual ({dca_currency})",
             min_value=0.0,
-            value=100.0,
-            step=10.0,
+            value=monthly_default,
+            step=monthly_step,
             key="dca_monthly",
         )
     with col2:
@@ -825,9 +843,9 @@ def render_dca_section(
 
     if df_dca is not None and not df_dca.empty:
         final = df_dca.iloc[-1]
-        total_invested = final["Aporte Acumulado (USD)"]
-        total_value = final["Capital Acumulado (USD)"]
-        total_interest = final["Intereses (USD)"]
+        total_invested = final["Aporte Acumulado"]
+        total_value = final["Capital Acumulado"]
+        total_interest = final["Intereses"]
         return_pct = (
             ((total_value - total_invested) / total_invested * 100)
             if total_invested else 0
@@ -839,7 +857,7 @@ def render_dca_section(
                 f"""
                 <div class="kpi-card">
                     <div class="kpi-label">Total Aportado</div>
-                    <div class="kpi-value" style="font-size:1.4rem;">{fmt_usd(total_invested)}</div>
+                    <div class="kpi-value" style="font-size:1.4rem;">{fmt_dca(total_invested)}</div>
                     <div class="kpi-sub neutral">{years * 12} aportes mensuales</div>
                 </div>
                 """,
@@ -850,7 +868,7 @@ def render_dca_section(
                 f"""
                 <div class="kpi-card">
                     <div class="kpi-label">Capital Final</div>
-                    <div class="kpi-value" style="font-size:1.4rem; color:{COLORS['gain']};">{fmt_usd(total_value)}</div>
+                    <div class="kpi-value" style="font-size:1.4rem; color:{COLORS['gain']};">{fmt_dca(total_value)}</div>
                     <div class="kpi-sub positive">+{fmt_pct(return_pct)}</div>
                 </div>
                 """,
@@ -861,7 +879,7 @@ def render_dca_section(
                 f"""
                 <div class="kpi-card">
                     <div class="kpi-label">Intereses Ganados</div>
-                    <div class="kpi-value" style="font-size:1.4rem; color:{COLORS['accent']};">{fmt_usd(total_interest)}</div>
+                    <div class="kpi-value" style="font-size:1.4rem; color:{COLORS['accent']};">{fmt_dca(total_interest)}</div>
                     <div class="kpi-sub neutral">Compounding over {years} years</div>
                 </div>
                 """,
@@ -879,10 +897,10 @@ def render_dca_section(
         if show_comparison:
             df_hist = calculate_dca_projection(monthly, cagr_10y_mix, years)
             fig_dca = build_dca_comparison_chart(
-                df_dca, df_hist, annual_rate, cagr_10y_mix, years * 12,
+                df_dca, df_hist, annual_rate, cagr_10y_mix, years * 12, dca_currency,
             )
         else:
-            fig_dca = build_dca_chart(df_dca)
+            fig_dca = build_dca_chart(df_dca, currency=dca_currency)
 
         st.plotly_chart(fig_dca, use_container_width=True, config={"displayModeBar": False})
 
@@ -892,13 +910,13 @@ def render_dca_section(
                 .groupby("Año")
                 .last()
                 .reset_index()
-                [["Año", "Aporte Acumulado (USD)", "Capital Acumulado (USD)", "Intereses (USD)"]]
+                [["Año", "Aporte Acumulado", "Capital Acumulado", "Intereses"]]
             )
             st.dataframe(
                 df_yearly.style.format({
-                    "Aporte Acumulado (USD)": "${:,.2f}",
-                    "Capital Acumulado (USD)": "${:,.2f}",
-                    "Intereses (USD)": "${:,.2f}",
+                    "Aporte Acumulado": "$ {:,.0f}",
+                    "Capital Acumulado": "$ {:,.0f}",
+                    "Intereses": "$ {:,.0f}",
                 }),
                 use_container_width=True,
                 hide_index=True,
