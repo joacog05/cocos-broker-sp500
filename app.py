@@ -61,6 +61,13 @@ from db import (
 )
 
 
+def fmt_number_input(label, fmt_func, **kwargs):
+    """Wrapper around st.number_input that adds a formatted caption below."""
+    value = st.number_input(label, **kwargs)
+    st.caption(fmt_func(value))
+    return value
+
+
 # ===========================================================================
 # Configuración de la página
 # ===========================================================================
@@ -372,8 +379,9 @@ def render_purchase_form(spy_price: float = 20000.0, qqq_price: float = 20000.0)
         )
 
     with col2:
-        precio = st.number_input(
+        precio = fmt_number_input(
             f"Precio unitario (ARS) — {ticker_local} *",
+            fmt_ars,
             value=precio_defecto,
             min_value=0.0,
             step=10.0,
@@ -729,8 +737,9 @@ def render_dca_section(
     budget_col1, budget_col2 = st.columns([1, 2])
     with budget_col1:
         if display_currency == "USD":
-            budget = st.number_input(
+            budget = fmt_number_input(
                 "Presupuesto Mensual (USD)",
+                fmt_usd,
                 min_value=0.0,
                 value=100.0,
                 step=10.0,
@@ -739,8 +748,9 @@ def render_dca_section(
             )
             budget_ars = budget * exchange_rate if exchange_rate else 0
         else:
-            budget_ars = st.number_input(
+            budget_ars = fmt_number_input(
                 "Presupuesto Mensual (ARS)",
+                fmt_ars,
                 min_value=0.0,
                 value=50000.0,
                 step=5000.0,
@@ -1109,8 +1119,9 @@ def render_dca_section(
     # -- Inputs --
     col1, col2, col3 = st.columns(3)
     with col1:
-        monthly = st.number_input(
+        monthly = fmt_number_input(
             f"Aporte mensual ({dca_currency})",
+            fmt_dca,
             min_value=0.0,
             value=monthly_default,
             step=monthly_step,
@@ -1289,8 +1300,9 @@ def render_dca_section(
     # -- Inputs --
     pc1, pc2 = st.columns(2)
     with pc1:
-        pv_input = st.number_input(
+        pv_input = fmt_number_input(
             f"Capital Inicial PV ({currency_label})",
+            fmt_fn,
             value=capital_default,
             min_value=0.0,
             step=50.0 if currency_label == "USD" else 5000.0,
@@ -1298,8 +1310,9 @@ def render_dca_section(
             key="custom_pv",
             help="Precargado automáticamente con el total invertido en tu portafolio actual.",
         )
-        pmt_input = st.number_input(
+        pmt_input = fmt_number_input(
             f"Aporte Mensual PMT ({currency_label})",
+            fmt_fn,
             min_value=0.0,
             value=100.0 if currency_label == "USD" else 50000.0,
             step=10.0 if currency_label == "USD" else 10000.0,
