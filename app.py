@@ -46,6 +46,9 @@ from utils import (
     fmt_date,
     build_candlestick_chart,
     build_dca_chart,
+    build_dca_comparison_chart,
+    calculate_cagr,
+    get_cagr_benchmarks,
 )
 from db import (
     get_supabase_client,
@@ -698,12 +701,73 @@ def render_dca_section(
         f"""
         <p style="color:{COLORS['text_secondary']}; font-size:0.9rem; margin-bottom:16px;">
         Simula el crecimiento de tu inversión con aportes periódicos.
-        Ingresá el monto mensual, la tasa estimada y el horizonte de tiempo.
+        Seleccioná un escenario o ingresá la tasa manualmente.
         </p>
         """,
         unsafe_allow_html=True,
     )
 
+    # -- Descargar benchmarks CAGR --
+    benchmarks = get_cagr_benchmarks()
+    cagr_10y_mix = benchmarks.get("10y", {}).get("mix")
+    cagr_5y_mix = benchmarks.get("5y", {}).get("mix")
+    cagr_10y_spy = benchmarks.get("10y", {}).get("spy")
+    cagr_10y_qqq = benchmarks.get("10y", {}).get("qqq")
+
+    # -- Selector de escenario --
+    st.markdown(
+        f"""
+        <div style="color:{COLORS['text_secondary']}; font-size:0.85rem;
+                    font-weight:500; margin-bottom:8px;">
+            📊 Escenario de tasa
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    scenario_cols = st.columns(4)
+    with scenario_cols[0]:
+        if cagr_10y_mix is not None:
+            btn_10y = st.button(
+                f"CAGR Histórico 10A\n({cagr_10y_mix * 100:.1f}%)",
+                key="btn_cagr_10y",
+                use_container_width=True,
+            )
+        else:
+            btn_10y = False
+    with scenario_cols[1]:
+        if cagr_5y_mix is not None:
+            btn_5y = st.button(
+                f"CAGR Histórico 5A\n({cagr_5y_mix * 100:.1f}%)",
+                key="btn_cagr_5y",
+                use_container_width=True,
+            )
+        else:
+            btn_5y = False
+    with scenario_cols[2]:
+        btn_conserv = st.button(
+            "Promedio Conservador\n(8.0%)",
+            key="btn_cagr_conserv",
+            use_container_width=True,
+        )
+    with scenario_cols[3]:
+        btn_manual = st.button(
+            "✏️ Manual / Personalizado",
+            key="btn_cagr_manual",
+            use_container_width=True,
+        )
+
+    # -- Actualizar session_state según botón presionado --
+    if btn_10y and cagr_10y_mix is not None:
+        st.session_state["dca_rate"] = round(cagr_10y_mix * 100, 1)
+    elif btn_5y and cagr_5y_mix is not None:
+        st.session_state["dca_rate"] = round(cagr_5y_mix * 100, 1)
+    elif btn_conserv:
+        st.session_state["dca_rate"] = 8.0
+    elif btn_manual:
+        st.session_state["dca_rate"] = 10.0
+
+    # -- Inputs --
     col1, col2, col3 = st.columns(3)
     with col1:
         monthly = st.number_input(
@@ -719,8 +783,9 @@ def render_dca_section(
             min_value=0.0,
             max_value=100.0,
             value=10.0,
-            step=0.5,
+            step=0.1,
             key="dca_rate",
+            help="Elegí un escenario arriba o editá manualmente.",
         ) / 100.0
     with col3:
         years = st.number_input(
@@ -732,6 +797,30 @@ def render_dca_section(
             key="dca_years",
         )
 
+    # -- Badges informativos de benchmarks --
+    if cagr_10y_mix is not None or cagr_5y_mix is not None:
+        badges = []
+        if cagr_10y_spy is not None:
+            badges.append(f"SPY 10A: {cagr_10y_spy * 100:.1f}%")
+        if cagr_10y_qqq is not None:
+            badges.append(f"QQQ 10A: {cagr_10y_qqq * 100:.1f}%")
+        if cagr_10y_mix is not None:
+            badges.append(f"Mix 70/30 10A: {cagr_10y_mix * 100:.1f}%")
+        if cagr_5y_mix is not None:
+            badges.append(f"Mix 70/30 5A: {cagr_5y_mix * 100:.1f}%")
+        badge_text = "  ·  ".join(badges)
+        st.markdown(
+            f"""
+            <div style="background:rgba(61,133,198,0.1); border:1px solid rgba(61,133,198,0.3);
+                        border-radius:8px; padding:8px 14px; margin-top:4px; margin-bottom:12px;
+                        font-size:0.8rem; color:{COLORS['text_secondary']};">
+                📈 <b>Rendimientos reales (USD):</b> {badge_text}
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+    # -- Proyectar --
     df_dca = calculate_dca_projection(monthly, annual_rate, years)
 
     if df_dca is not None and not df_dca.empty:
@@ -781,7 +870,20 @@ def render_dca_section(
 
         st.markdown("")
 
-        fig_dca = build_dca_chart(df_dca)
+        # -- Gráfico con o sin comparación --
+        show_comparison = (
+            cagr_10y_mix is not None
+            and abs(annual_rate - cagr_10y_mix) > 0.005
+        )
+
+        if show_comparison:
+            df_hist = calculate_dca_projection(monthly, cagr_10y_mix, years)
+            fig_dca = build_dca_comparison_chart(
+                df_dca, df_hist, annual_rate, cagr_10y_mix, years * 12,
+            )
+        else:
+            fig_dca = build_dca_chart(df_dca)
+
         st.plotly_chart(fig_dca, use_container_width=True, config={"displayModeBar": False})
 
         with st.expander("📋 Ver detalle por año", expanded=False):

@@ -971,6 +971,80 @@ def build_allocation_chart(metrics: dict, display_currency: str = "ARS") -> go.F
     return fig
 
 
+# ---------------------------------------------------------------------------
+# CAGR — Cálculo de rendimiento histórico real
+# ---------------------------------------------------------------------------
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def calculate_cagr(ticker: str, years: int) -> float | None:
+    """
+    Calcula el CAGR real de un ticker usando yfinance.
+
+    CAGR = (Precio_Final / Precio_Inicial) ^ (1/Años) - 1
+
+    Args:
+        ticker: Ticker en Yahoo Finance (ej: 'SPY', 'QQQ').
+        years:  Período en años para el cálculo.
+
+    Returns:
+        CAGR como decimal (ej: 0.125 = 12.5%) o None si falla.
+    """
+    try:
+        import yfinance as yf
+        end_date = datetime.now()
+        start_date = end_date - timedelta(days=years * 365)
+        hist = yf.download(ticker, start=start_date.strftime("%Y-%m-%d"),
+                           end=end_date.strftime("%Y-%m-%d"), progress=False)
+        if hist is None or len(hist) < 2:
+            return None
+        # Handle multi-level columns from yfinance
+        if isinstance(hist.columns, pd.MultiIndex):
+            close = hist["Close"].iloc[:, 0]
+        else:
+            close = hist["Close"]
+        precio_inicio = float(close.iloc[0])
+        precio_fin = float(close.iloc[-1])
+        if precio_inicio <= 0:
+            return None
+        return (precio_fin / precio_inicio) ** (1 / years) - 1
+    except Exception:
+        return None
+
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def get_cagr_benchmarks() -> dict:
+    """
+    Calcula benchmarks de CAGR para SPY, QQQ y mix 70/30.
+
+    Returns:
+        Diccionario con keys '5y', '10y', 'max' y cada uno con
+        'spy', 'qqq', 'mix' (70/30 ponderado).
+    """
+    periods = {
+        "5y": 5,
+        "10y": 10,
+        "max": 20,
+    }
+    result = {}
+    for label, yrs in periods.items():
+        cagr_spy = calculate_cagr(TICKER_SPY_USD, yrs)
+        cagr_qqq = calculate_cagr(TICKER_QQQ_USD, yrs)
+        if cagr_spy is not None and cagr_qqq is not None:
+            cagr_mix = cagr_spy * 0.70 + cagr_qqq * 0.30
+        elif cagr_spy is not None:
+            cagr_mix = cagr_spy
+        elif cagr_qqq is not None:
+            cagr_mix = cagr_qqq
+        else:
+            cagr_mix = None
+        result[label] = {
+            "spy": cagr_spy,
+            "qqq": cagr_qqq,
+            "mix": cagr_mix,
+        }
+    return result
+
+
 def calculate_dca_projection(
     monthly_amount: float,
     annual_rate: float,
@@ -1464,7 +1538,117 @@ def build_candlestick_chart(
             showgrid=False,
             tickfont=dict(size=9, color=COLORS["tv_crosshair"]),
             row=2, col=1,
+    )
+
+    return fig
+
+
+def build_dca_comparison_chart(
+    df_user: pd.DataFrame,
+    df_hist: pd.DataFrame,
+    rate_user: float,
+    rate_hist: float,
+    months: int,
+) -> go.Figure:
+    """
+    Construye gráfico DCA con dos curvas: manual vs histórica.
+
+    Args:
+        df_user:   DataFrame de la proyección del usuario (tasa manual).
+        df_hist:   DataFrame de la proyección histórica (CAGR real).
+        rate_user: Tasa manual como decimal (ej: 0.10).
+        rate_hist: Tasa histórica como decimal (ej: 0.125).
+        months:    Total de meses proyectados.
+
+    Returns:
+        Plotly Figure con ambas curvas superpuestas.
+    """
+    fig = go.Figure()
+
+    # Aportes acumulados (sombreado de fondo)
+    fig.add_trace(go.Scatter(
+        x=df_user["Mes"],
+        y=df_user["Aporte Acumulado (USD)"],
+        name="Aportes",
+        fill="tozeroy",
+        fillcolor="rgba(61, 133, 198, 0.12)",
+        line=dict(color=COLORS["accent"], width=1, dash="dot"),
+    ))
+
+    # Curva del usuario ( Verde continua)
+    fig.add_trace(go.Scatter(
+        x=df_user["Mes"],
+        y=df_user["Capital Acumulado (USD)"],
+        name=f"Tu estimación ({rate_user * 100:.1f}%)",
+        line=dict(color=COLORS["gain"], width=2.5),
+    ))
+
+    # Curva histórica ( Violeta/gris punteada)
+    fig.add_trace(go.Scatter(
+        x=df_hist["Mes"],
+        y=df_hist["Capital Acumulado (USD)"],
+        name=f"CAGR Histórico 10A ({rate_hist * 100:.1f}%)",
+        line=dict(color="#9B59B6", width=2, dash="dash"),
+    ))
+
+    # Badge comparativo
+    diff = rate_user - rate_hist
+    if abs(diff) > 0.001:
+        emoji = "📈" if diff > 0 else "📉"
+        label = (
+            f"{emoji} Tu estimación ({rate_user * 100:.1f}%) "
+            f"vs. Histórico 10A ({rate_hist * 100:.1f}%)"
         )
+        color = COLORS["gain"] if diff > 0 else COLORS["loss"]
+    else:
+        label = (
+            f"✅ Tu estimación coincide con el CAGR histórico 10A "
+            f"({rate_hist * 100:.1f}%)"
+        )
+        color = COLORS["accent"]
+
+    # KPI final del usuario
+    final_user = df_user.iloc[-1]["Capital Acumulado (USD)"]
+    final_hist = df_hist.iloc[-1]["Capital Acumulado (USD)"]
+    diff_abs = final_user - final_hist
+
+    fig.update_layout(
+        template="plotly_dark",
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        font=dict(family="Inter, sans-serif", color=COLORS["text_primary"]),
+        showlegend=True,
+        legend=dict(
+            orientation="h",
+            yanchor="bottom",
+            y=1.02,
+            xanchor="right",
+            x=1,
+            font=dict(size=11),
+        ),
+        margin=dict(l=0, r=0, t=30, b=0),
+        xaxis_title="Mes",
+        yaxis_title="USD",
+        xaxis=dict(gridcolor="rgba(255,255,255,0.04)", showgrid=False),
+        yaxis=dict(gridcolor="rgba(255,255,255,0.04)", showgrid=False),
+        height=400,
+        annotations=[
+            dict(
+                text=(
+                    f"<b>Diferencia a {months // 12} años:</b> "
+                    f"{'+'if diff_abs >= 0 else ''}{fmt_usd(diff_abs)}"
+                ),
+                xref="paper", yref="paper",
+                x=0.01, y=0.98,
+                showarrow=False,
+                font=dict(size=12, color=color),
+                bgcolor="rgba(30,30,30,0.8)",
+                bordercolor=color,
+                borderwidth=1,
+                borderpad=6,
+            )
+        ],
+    )
 
     return fig
 
